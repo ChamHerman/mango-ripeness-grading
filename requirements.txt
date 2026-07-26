@@ -10,3 +10,5 @@ torchvision>=0.15.0
 reportlab>=4.0.0
 pillow>=10.0.0
 rembg[cpu]>=2.0.0
+scikit-learn
+joblib
