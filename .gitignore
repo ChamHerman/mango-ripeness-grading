@@ -1,2 +1,4 @@
 /.reasonix
 reasonix.toml
+/docs
+CONTEXT.md
