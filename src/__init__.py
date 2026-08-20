@@ -1,4 +1,4 @@
 from .color_space import analyze_ripeness_by_color
 from .texture import analyze_ripeness_by_texture
 from .geometry import analyze_ripeness_by_geometry
-from .deep_learning import analyze_ripeness_by_deep_learning
+from .morphology import analyze_ripeness_by_morphology

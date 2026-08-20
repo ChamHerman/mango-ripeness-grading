@@ -4,286 +4,644 @@ import numpy as np
 import pandas as pd
 import time
 import os
+import glob
 import matplotlib.pyplot as plt
 import seaborn as sns
 from PIL import Image
 
-# Import custom image processing modules
+# Import modular image processing engines
+from src.morphology import analyze_ripeness_by_morphology
 from src.color_space import analyze_ripeness_by_color
 from src.texture import analyze_ripeness_by_texture
 from src.geometry import analyze_ripeness_by_geometry
-from src.deep_learning import analyze_ripeness_by_deep_learning
 from src.reports import generate_pdf_report
 
+# Page Configuration
 st.set_page_config(
-    page_title="Mango Ripeness Analyzer",
-    page_icon="🥭",
+    page_title="Mango Ripeness Grading & Inspection System",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Custom Styling for Premium Look
+# -----------------------------------------------------------------------------
+# SVG Icons Library (Crisp, modern inline vector icons)
+# -----------------------------------------------------------------------------
+SVG_ICONS = {
+    'mango': '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2C6.5 2 2 6.5 2 12c0 3.5 2 6.5 5 8.5 3 2 7 1.5 10-1.5s5-7 5-10.5C22 5 17.5 2 12 2z"></path><path d="M12 2c1 3 3 5 6 5"></path></svg>',
+    'diagnostic': '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="m4.93 4.93 4.24 4.24"></path><path d="m14.83 9.17 4.24-4.24"></path><path d="m14.83 14.83 4.24 4.24"></path><path d="m9.17 14.83-4.24 4.24"></path><circle cx="12" cy="12" r="4"></circle></svg>',
+    'conveyor': '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="8" x="2" y="14" rx="2"></rect><path d="M6 18h.01"></path><path d="M10 18h.01"></path><path d="M14 18h.01"></path><path d="M18 18h.01"></path><path d="M4 14V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8"></path></svg>',
+    'analytics': '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"></path><path d="m19 9-5 5-4-4-3 3"></path></svg>',
+    'verified': '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg>',
+    'scaffold': '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>',
+    'upload': '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>',
+    'sliders': '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="1" y1="14" x2="7" y2="14"></line><line x1="9" y1="8" x2="15" y2="8"></line><line x1="17" y1="16" x2="23" y2="16"></line></svg>',
+    'play': '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>',
+    'pdf': '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><line x1="10" y1="9" x2="8" y2="9"></line></svg>',
+    'table': '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"></path><rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M3 9h18"></path><path d="M3 15h18"></path></svg>',
+    'eye': '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"></path><circle cx="12" cy="12" r="3"></circle></svg>'
+}
+
+# -----------------------------------------------------------------------------
+# Modern Dark Theme & Frosted Glassmorphism CSS
+# -----------------------------------------------------------------------------
 st.markdown("""
 <style>
-    .main {
-        background-color: #0e1117;
-        color: #ffffff;
+    /* Global Base */
+    .stApp {
+        background-color: #0b0f19;
+        color: #f1f5f9;
+        font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
     }
-    .stHeader {
-        background: linear-gradient(135deg, #ff8c00 0%, #e52d27 100%);
+    
+    /* Headers & Branding Gradient */
+    .main-title {
+        font-size: 2.1rem;
+        font-weight: 800;
+        letter-spacing: -0.5px;
+        background: linear-gradient(135deg, #f59e0b 0%, #ea580c 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
+        margin-bottom: 0.2rem;
+        display: flex;
+        align-items: center;
+        gap: 12px;
     }
-    .metric-card {
-        background: rgba(255, 255, 255, 0.05);
-        padding: 20px;
+    .sub-title {
+        font-size: 0.95rem;
+        color: #94a3b8;
+        margin-bottom: 1.5rem;
+    }
+    
+    .section-header {
+        color: #f8fafc;
+        font-size: 1.2rem;
+        font-weight: 700;
+        margin-top: 1.6rem;
+        margin-bottom: 0.8rem;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    /* Glassmorphism Container Cards */
+    .glass-card {
+        background: rgba(30, 41, 59, 0.45);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.08);
         border-radius: 12px;
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        text-align: center;
-        transition: transform 0.3s ease;
+        padding: 18px;
+        margin-bottom: 15px;
+        box-shadow: 0 4px 20px 0 rgba(0, 0, 0, 0.35);
+        transition: transform 0.25s ease, border-color 0.25s ease;
     }
-    .metric-card:hover {
-        transform: translateY(-5px);
-        border-color: #ff8c00;
+    .glass-card:hover {
+        border-color: rgba(245, 158, 11, 0.4);
+        transform: translateY(-2px);
     }
-    .metric-title {
-        font-size: 14px;
-        color: #b0b0b0;
+    
+    /* Metric Highlights */
+    .metric-label {
+        font-size: 0.8rem;
+        font-weight: 600;
         text-transform: uppercase;
-        margin-bottom: 5px;
+        letter-spacing: 0.8px;
+        color: #94a3b8;
+        margin-bottom: 4px;
     }
-    .metric-value {
-        font-size: 28px;
-        font-weight: bold;
-        color: #ff8c00;
+    .metric-val {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #f8fafc;
+        margin-bottom: 2px;
+    }
+    
+    /* Status Badges */
+    .badge-unripe {
+        background-color: rgba(34, 197, 94, 0.15);
+        color: #4ade80;
+        border: 1px solid rgba(34, 197, 94, 0.3);
+        padding: 3px 10px;
+        border-radius: 9999px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        display: inline-block;
+    }
+    .badge-ripe {
+        background-color: rgba(245, 158, 11, 0.15);
+        color: #fbbf24;
+        border: 1px solid rgba(245, 158, 11, 0.3);
+        padding: 3px 10px;
+        border-radius: 9999px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        display: inline-block;
+    }
+    .badge-overripe {
+        background-color: rgba(239, 68, 68, 0.15);
+        color: #f87171;
+        border: 1px solid rgba(239, 68, 68, 0.3);
+        padding: 3px 10px;
+        border-radius: 9999px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        display: inline-block;
+    }
+    
+    .status-completed {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        background-color: rgba(16, 185, 129, 0.15);
+        color: #34d399;
+        border: 1px solid rgba(16, 185, 129, 0.3);
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 0.7rem;
+        font-weight: 600;
+    }
+    
+    .status-scaffold {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        background-color: rgba(245, 158, 11, 0.15);
+        color: #fbbf24;
+        border: 1px solid rgba(245, 158, 11, 0.3);
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 0.7rem;
+        font-weight: 600;
+    }
+    
+    /* Consensus Banner */
+    .consensus-box {
+        background: linear-gradient(135deg, rgba(245, 158, 11, 0.12) 0%, rgba(234, 88, 12, 0.12) 100%);
+        border: 1px solid rgba(245, 158, 11, 0.35);
+        border-radius: 12px;
+        padding: 16px;
+        text-align: center;
+        margin-bottom: 20px;
     }
 </style>
 """, unsafe_allow_html=True)
 
-st.title("🥭 Mango Ripeness Grading & Analytics")
-st.markdown("An advanced AI and Computer Vision suite to evaluate mango ripeness.")
-
+# -----------------------------------------------------------------------------
 # Sidebar Navigation
-st.sidebar.image("https://img.icons8.com/color/96/mango.png", width=90)
-st.sidebar.title("Navigation")
-page = st.sidebar.radio("Go to", ["Single Analysis", "Bulk Processing", "Performance Benchmark"])
+# -----------------------------------------------------------------------------
+st.sidebar.markdown(f"<div style='font-size: 1.2rem; font-weight: bold; color: #f59e0b; display: flex; align-items: center; gap: 8px;'>{SVG_ICONS['mango']} Mango Ripeness Grading</div>", unsafe_allow_html=True)
+st.sidebar.markdown("<div style='font-size: 0.8rem; color: #94a3b8;'>BMDS2133 Image Processing Prototype</div><hr style='margin: 8px 0 16px 0; border-color: rgba(255,255,255,0.1);'>", unsafe_allow_html=True)
 
-def process_single_image(img_bgr):
-    # Process with all 4 techniques
-    # 1. Color Space
-    t0 = time.time()
-    color_pred, color_conf, color_vis = analyze_ripeness_by_color(img_bgr)
-    t_color = (time.time() - t0) * 1000
-    
-    # 2. Texture Analysis
-    t0 = time.time()
-    text_pred, text_conf, text_vis = analyze_ripeness_by_texture(img_bgr)
-    t_text = (time.time() - t0) * 1000
-    
-    # 3. Geometry/Edges
-    t0 = time.time()
-    geom_pred, geom_conf, geom_vis = analyze_ripeness_by_geometry(img_bgr)
-    t_geom = (time.time() - t0) * 1000
-    
-    # 4. Deep Learning
-    t0 = time.time()
-    dl_pred, dl_conf, dl_vis = analyze_ripeness_by_deep_learning(img_bgr)
-    t_dl = (time.time() - t0) * 1000
-    
-    # Simple consensus voting for final prediction
-    votes = [color_pred, text_pred, geom_pred, dl_pred]
-    final_pred = max(set(votes), key=votes.count)
-    
-    return {
-        'color': (color_pred, color_conf, color_vis, t_color),
-        'texture': (text_pred, text_conf, text_vis, t_text),
-        'geometry': (geom_pred, geom_conf, geom_vis, t_geom),
-        'dl': (dl_pred, dl_conf, dl_vis, t_dl),
-        'final': final_pred
-    }
+selected_page = st.sidebar.radio(
+    "Navigation:",
+    ["Single Image Diagnostic Playground",
+     "Bulk Batch Assessment (Conveyor Stream)",
+     "System Analytics & Comparative Benchmark"]
+)
 
-if page == "Single Analysis":
-    st.subheader("Single Image Diagnostic playground")
+st.sidebar.markdown("<br><hr style='border-color: rgba(255,255,255,0.1);'>", unsafe_allow_html=True)
+st.sidebar.markdown(f"""
+<div style='font-size: 0.75rem; color: #94a3b8;'>
+    <b style='color: #f1f5f9;'>Team Module Status:</b><br><br>
+    <div style='margin-bottom: 6px;'><b>Cham Herman</b>: Morphological Blemish<br><span class='status-completed'>{SVG_ICONS['verified']} Completed & Verified</span></div>
+    <div style='margin-bottom: 6px;'><b>Lum Siew Feng</b>: Color-Space Thresholding<br><span class='status-completed'>{SVG_ICONS['verified']} Completed & Verified</span></div>
+    <div style='margin-bottom: 6px;'><b>Wong Kai Bin</b>: Texture & Surface GLCM<br><span class='status-scaffold'>{SVG_ICONS['scaffold']} Scaffold (Pending Final Notebook)</span></div>
+    <div><b>Yeow Wei Kang</b>: Edge & Deformity Detection<br><span class='status-scaffold'>{SVG_ICONS['scaffold']} Scaffold (Pending Final Notebook)</span></div>
+</div>
+""", unsafe_allow_html=True)
+
+def get_class_badge(cls_name):
+    cls_lower = str(cls_name).lower()
+    if 'unripe' in cls_lower:
+        return "<span class='badge-unripe'>Stage 0: Unripe</span>"
+    elif 'overripe' in cls_lower:
+        return "<span class='badge-overripe'>Stage Overripe</span>"
+    else:
+        return "<span class='badge-ripe'>Stage 3: Fully Ripe</span>"
+
+# -----------------------------------------------------------------------------
+# PAGE 1: DIAGNOSTIC PLAYGROUND (SINGLE IMAGE)
+# -----------------------------------------------------------------------------
+if selected_page.startswith("Single"):
+    st.markdown(f"<div class='main-title'>{SVG_ICONS['diagnostic']} Diagnostic Playground</div>", unsafe_allow_html=True)
+    st.markdown("<div class='sub-title'>Interactive computer vision diagnostic suite allowing multi-technique selection, step-by-step pipeline inspection, and comparative grading.</div>", unsafe_allow_html=True)
     
-    uploaded_file = st.file_uploader("Upload a Mango image...", type=["jpg", "jpeg", "png"])
+    col_input, col_config = st.columns([1.2, 1.0])
     
-    if uploaded_file is not None:
-        # Load Image
-        file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
-        img_bgr = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
-        img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
+    with col_input:
+        st.markdown(f"<div class='glass-card'><div style='font-weight: 700; color: #f8fafc; margin-bottom: 10px; display: flex; align-items: center; gap: 8px;'>{SVG_ICONS['upload']} 1. Input Mango Image</div>", unsafe_allow_html=True)
+        input_source = st.radio("Input Source:", ["Preloaded Standard Dataset Samples", "Upload Image File"], horizontal=True)
         
-        # Layout Columns
-        col1, col2 = st.columns([1, 1])
+        img_bgr = None
+        img_filename = "sample.jpg"
         
-        with col1:
-            st.image(img_rgb, caption="Uploaded Original Image", use_container_width=True)
-            
-        with col2:
-            st.write("### Grading Engine Diagnostics")
-            with st.spinner("Analyzing with 4 pipelines..."):
-                results = process_single_image(img_bgr)
+        if input_source == "Upload Image File":
+            uploaded_file = st.file_uploader("Upload Mango Image (.jpg, .png)", type=["jpg", "jpeg", "png"])
+            if uploaded_file is not None:
+                file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
+                img_bgr = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
+                img_filename = uploaded_file.name
+        else:
+            sample_options = {
+                "Sample Unripe Mango (Stage 0)": "cleaned_data/test/unripe",
+                "Sample Fully Ripe Mango (Stage 3)": "cleaned_data/test/fully_ripe",
+                "Sample Overripe Mango (Necrotic Lesions)": "cleaned_data/test/overripe"
+            }
+            selected_sample_label = st.selectbox("Select Test Image:", list(sample_options.keys()))
+            sample_dir = sample_options[selected_sample_label]
+            available_samples = sorted(glob.glob(f"{sample_dir}/*.*"))
+            if available_samples:
+                img_path = available_samples[0]
+                img_bgr = cv2.imread(img_path)
+                img_filename = os.path.basename(img_path)
                 
-            st.success(f"Consensus Grading: **{results['final']}**")
+        if img_bgr is not None:
+            img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
+            st.image(img_rgb, caption=f"Input Image: {img_filename}", use_container_width=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+        
+    with col_config:
+        st.markdown(f"<div class='glass-card'><div style='font-weight: 700; color: #f8fafc; margin-bottom: 8px; display: flex; align-items: center; gap: 8px;'>{SVG_ICONS['sliders']} 2. Algorithm Selection</div>", unsafe_allow_html=True)
+        st.markdown("<div style='font-size: 0.8rem; color: #94a3b8; margin-bottom: 12px;'>Select which classical algorithms to execute for side-by-side comparison:</div>", unsafe_allow_html=True)
+        
+        use_morph = st.checkbox("Morphological Blemish Analysis (Cham Herman) — [Completed]", value=True)
+        use_color = st.checkbox("Color-Space Thresholding (Lum Siew Feng) — [Completed]", value=True)
+        use_texture = st.checkbox("Texture & Surface GLCM Analysis (Wong Kai Bin) — [Scaffold]", value=False)
+        use_geom = st.checkbox("Edge & Shape Deformity Detection (Yeow Wei Kang) — [Scaffold]", value=False)
+        
+        selected_count = sum([use_morph, use_color, use_texture, use_geom])
+        st.markdown(f"<div style='font-size: 0.85rem; color: #f59e0b; margin-top: 10px;'>Active Techniques: <b>{selected_count} / 4 Selected</b></div>", unsafe_allow_html=True)
+        st.markdown("<br>", unsafe_allow_html=True)
+        
+        assess_btn = st.button("Execute Ripeness Assessment", use_container_width=True, type="primary")
+        st.markdown("</div>", unsafe_allow_html=True)
+        
+    # --- Processing Execution ---
+    if img_bgr is not None and (assess_btn or 'last_results' in st.session_state):
+        if assess_btn:
+            if selected_count == 0:
+                st.error("Please select at least one algorithm to run assessment.")
+            else:
+                with st.spinner("Processing selected computer vision pipelines..."):
+                    results = {}
+                    
+                    if use_morph:
+                        pred_m, conf_m, vis_m, met_m, steps_m = analyze_ripeness_by_morphology(img_bgr)
+                        results['morph'] = {'pred': pred_m, 'conf': conf_m, 'vis': vis_m, 'metrics': met_m, 'steps': steps_m, 'author': 'Cham Herman', 'name': 'Morphological Blemish', 'status': 'completed'}
+                        
+                    if use_color:
+                        pred_c, conf_c, vis_c, met_c, steps_c = analyze_ripeness_by_color(img_bgr)
+                        results['color'] = {'pred': pred_c, 'conf': conf_c, 'vis': vis_c, 'metrics': met_c, 'steps': steps_c, 'author': 'Lum Siew Feng', 'name': 'Color-Space Thresholding', 'status': 'completed'}
+                        
+                    if use_texture:
+                        pred_t, conf_t, vis_t, met_t, steps_t = analyze_ripeness_by_texture(img_bgr)
+                        results['texture'] = {'pred': pred_t, 'conf': conf_t, 'vis': vis_t, 'metrics': met_t, 'steps': steps_t, 'author': 'Wong Kai Bin', 'name': 'Texture & Surface GLCM', 'status': 'scaffold'}
+                        
+                    if use_geom:
+                        pred_g, conf_g, vis_g, met_g, steps_g = analyze_ripeness_by_geometry(img_bgr)
+                        results['geom'] = {'pred': pred_g, 'conf': conf_g, 'vis': vis_g, 'metrics': met_g, 'steps': steps_g, 'author': 'Yeow Wei Kang', 'name': 'Edge & Shape Geometry', 'status': 'scaffold'}
+                        
+                    # Calculate Ensemble Consensus Verdict
+                    all_preds = [v['pred'] for v in results.values()]
+                    consensus_pred = max(set(all_preds), key=all_preds.count)
+                    avg_conf = np.mean([v['conf'] for v in results.values()])
+                    total_latency = sum([v['metrics'].get('latency_ms', 0) for v in results.values()])
+                    
+                    st.session_state['last_results'] = {
+                        'results': results,
+                        'consensus': consensus_pred,
+                        'avg_conf': avg_conf,
+                        'total_latency': total_latency,
+                        'filename': img_filename
+                    }
+                    
+        # Render Results
+        if 'last_results' in st.session_state:
+            pack = st.session_state['last_results']
+            res_dict = pack['results']
             
-            # Show styled cards for each team member's approach
-            c1, c2 = st.columns(2)
-            with c1:
-                st.markdown(f"""
-                <div class="metric-card">
-                    <div class="metric-title">Siew Feng (Color Space)</div>
-                    <div class="metric-value">{results['color'][0]}</div>
-                    <p style="margin: 0; color: #888;">Conf: {results['color'][1]:.2f} | {results['color'][3]:.1f}ms</p>
+            st.markdown("<hr style='border-color: rgba(255,255,255,0.1); margin: 25px 0;'>", unsafe_allow_html=True)
+            
+            # Consensus Banner
+            st.markdown(f"""
+            <div class='consensus-box'>
+                <div style='font-size: 0.85rem; font-weight: 600; text-transform: uppercase; color: #f59e0b; letter-spacing: 1px;'>Hybrid Ensemble Consensus Verdict</div>
+                <div style='font-size: 2.0rem; font-weight: 800; color: #ffffff; margin: 4px 0;'>
+                    {pack['consensus'].upper()}
                 </div>
-                """, unsafe_allow_html=True)
-                st.markdown("<br>", unsafe_allow_html=True)
-                st.markdown(f"""
-                <div class="metric-card">
-                    <div class="metric-title">Kai Bin (Texture)</div>
-                    <div class="metric-value">{results['texture'][0]}</div>
-                    <p style="margin: 0; color: #888;">Conf: {results['texture'][1]:.2f} | {results['texture'][3]:.1f}ms</p>
+                <div>{get_class_badge(pack['consensus'])}</div>
+                <div style='font-size: 0.85rem; color: #94a3b8; margin-top: 6px;'>
+                    Consensus Confidence: <b>{pack['avg_conf']:.1f}%</b> | Cumulative Processing Latency: <b>{pack['total_latency']:.1f} ms</b>
                 </div>
-                """, unsafe_allow_html=True)
-            with c2:
-                st.markdown(f"""
-                <div class="metric-card">
-                    <div class="metric-title">Wei Kang (Geometry)</div>
-                    <div class="metric-value">{results['geometry'][0]}</div>
-                    <p style="margin: 0; color: #888;">Conf: {results['geometry'][1]:.2f} | {results['geometry'][3]:.1f}ms</p>
-                </div>
-                """, unsafe_allow_html=True)
-                st.markdown("<br>", unsafe_allow_html=True)
-                st.markdown(f"""
-                <div class="metric-card">
-                    <div class="metric-title">Herman (Deep Learning)</div>
-                    <div class="metric-value">{results['dl'][0]}</div>
-                    <p style="margin: 0; color: #888;">Conf: {results['dl'][1]:.2f} | {results['dl'][3]:.1f}ms</p>
-                </div>
-                """, unsafe_allow_html=True)
-        
-        st.write("---")
-        st.subheader("Technique Visualizations")
-        
-        # Display algorithm visual outputs
-        v_col1, v_col2, v_col3, v_col4 = st.columns(4)
-        with v_col1:
-            st.image(cv2.cvtColor(results['color'][2], cv2.COLOR_BGR2RGB), caption="Color Threshold Mask", use_container_width=True)
-        with v_col2:
-            st.image(cv2.cvtColor(results['texture'][2], cv2.COLOR_BGR2RGB), caption="GLCM Texture Gradient Map", use_container_width=True)
-        with v_col3:
-            st.image(cv2.cvtColor(results['geometry'][2], cv2.COLOR_BGR2RGB), caption="Canny Edges & Bounding Box", use_container_width=True)
-        with v_col4:
-            st.image(cv2.cvtColor(results['dl'][2], cv2.COLOR_BGR2RGB), caption="Deep Learning Overlay", use_container_width=True)
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Side-by-side Technique Cards
+            st.markdown(f"<div class='section-header'>{SVG_ICONS['analytics']} Individual Diagnostic Results</div>", unsafe_allow_html=True)
+            tech_cols = st.columns(len(res_dict))
+            
+            for idx, (k, item) in enumerate(res_dict.items()):
+                with tech_cols[idx]:
+                    st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
+                    st.markdown(f"<div class='metric-label'>{item['name']}</div>", unsafe_allow_html=True)
+                    
+                    if item.get('status') == 'completed':
+                        st.markdown(f"<div style='margin-bottom: 6px;'><span class='status-completed'>{SVG_ICONS['verified']} Completed ({item['author']})</span></div>", unsafe_allow_html=True)
+                    else:
+                        st.markdown(f"<div style='margin-bottom: 6px;'><span class='status-scaffold'>{SVG_ICONS['scaffold']} Scaffold ({item['author']})</span></div>", unsafe_allow_html=True)
+                        
+                    st.markdown(f"<div class='metric-val'>{item['pred'].upper()}</div>", unsafe_allow_html=True)
+                    st.markdown(f"<div>{get_class_badge(item['pred'])}</div>", unsafe_allow_html=True)
+                    st.markdown(f"<div style='font-size: 0.8rem; color: #94a3b8; margin-top: 8px;'>Confidence: <b>{item['conf']:.1f}%</b><br>Latency: <b>{item['metrics'].get('latency_ms', 0):.1f} ms</b></div>", unsafe_allow_html=True)
+                    st.image(item['vis'], caption=f"Overlay: {item['name']}", use_container_width=True)
+                    st.markdown("</div>", unsafe_allow_html=True)
+                    
+            # Step-by-Step Intermediate Pipeline Visualizer
+            st.markdown(f"<div class='section-header'>{SVG_ICONS['eye']} Intermediate Pipeline Diagnostics (Step-by-Step Transformations)</div>", unsafe_allow_html=True)
+            st.markdown("<div style='font-size: 0.85rem; color: #94a3b8; margin-bottom: 12px;'>Expand each tab to inspect the classical image processing operations applied to the mango:</div>", unsafe_allow_html=True)
+            
+            for k, item in res_dict.items():
+                badge_text = "Verified Module" if item.get('status') == 'completed' else "Scaffold Pipeline"
+                with st.expander(f"Pipeline: {item['name']} (By {item['author']} — {badge_text})", expanded=(k=='morph')):
+                    steps = item.get('steps', {})
+                    if steps:
+                        s_cols = st.columns(len(steps))
+                        for s_idx, (s_name, s_img) in enumerate(steps.items()):
+                            with s_cols[s_idx]:
+                                if len(s_img.shape) == 2:
+                                    st.image(s_img, caption=s_name, use_container_width=True, clamp=True)
+                                else:
+                                    st.image(s_img, caption=s_name, use_container_width=True)
+                    else:
+                        st.info("No intermediate steps available for this module.")
+                        
+            # Metrics Summary Table
+            st.markdown(f"<div class='section-header'>{SVG_ICONS['table']} Extracted Feature Metrics Comparison Table</div>", unsafe_allow_html=True)
+            table_rows = []
+            for k, item in res_dict.items():
+                row = {
+                    'Technique': item['name'],
+                    'Developer': item['author'],
+                    'Module Status': 'Completed' if item.get('status')=='completed' else 'Scaffold',
+                    'Predicted Class': item['pred'].upper(),
+                    'Confidence (%)': f"{item['conf']:.1f}%",
+                    'Latency (ms)': f"{item['metrics'].get('latency_ms', 0):.1f} ms"
+                }
+                if k == 'morph':
+                    row['Primary Physical Metric'] = f"Blemish Area: {item['metrics'].get('blemish_area_ratio', 0):.2f}% (Count: {item['metrics'].get('n_blemishes', 0)})"
+                elif k == 'color':
+                    row['Primary Physical Metric'] = f"Mean Hue: {item['metrics'].get('mean_hue', 0):.1f} | Yellow Peel: {item['metrics'].get('yellow_coverage_pct', 0):.1f}%"
+                elif k == 'texture':
+                    row['Primary Physical Metric'] = f"GLCM Contrast: {item['metrics'].get('glcm_contrast', 0):.1f} | Roughness: {item['metrics'].get('surface_roughness', 0):.1f}"
+                elif k == 'geom':
+                    row['Primary Physical Metric'] = f"Edge Density: {item['metrics'].get('edge_density_pct', 0):.2f}% | Aspect Ratio: {item['metrics'].get('bounding_aspect_ratio', 0):.2f}"
+                    
+                table_rows.append(row)
+                
+            df_metrics = pd.DataFrame(table_rows)
+            st.dataframe(df_metrics, use_container_width=True, hide_index=True)
+            
+            # PDF Report Export Option (Extra Effort)
+            st.markdown("<br>", unsafe_allow_html=True)
+            rep_col1, rep_col2 = st.columns([1, 2])
+            with rep_col1:
+                if st.button("Generate Quality Inspection PDF Report", use_container_width=True):
+                    rep_results = [{
+                        'filename': pack['filename'],
+                        'morph_pred': res_dict.get('morph', {}).get('pred', '-'),
+                        'morph_conf': res_dict.get('morph', {}).get('conf', 0),
+                        'color_pred': res_dict.get('color', {}).get('pred', '-'),
+                        'color_conf': res_dict.get('color', {}).get('conf', 0),
+                        'texture_pred': res_dict.get('texture', {}).get('pred', '-'),
+                        'texture_conf': res_dict.get('texture', {}).get('conf', 0),
+                        'geom_pred': res_dict.get('geom', {}).get('pred', '-'),
+                        'geom_conf': res_dict.get('geom', {}).get('conf', 0),
+                        'final_pred': pack['consensus']
+                    }]
+                    summary_stats = {
+                        'total': 1,
+                        'unripe': 1 if pack['consensus']=='unripe' else 0,
+                        'fully_ripe': 1 if pack['consensus']=='fully_ripe' else 0,
+                        'overripe': 1 if pack['consensus']=='overripe' else 0,
+                        'dominant': pack['consensus']
+                    }
+                    pdf_file = generate_pdf_report(rep_results, summary_stats)
+                    with open(pdf_file, "rb") as f:
+                        st.download_button(
+                            label="Download Generated PDF Report",
+                            data=f.read(),
+                            file_name=f"Inspection_Report_{pack['filename']}.pdf",
+                            mime="application/pdf",
+                            use_container_width=True
+                        )
 
-elif page == "Bulk Processing":
-    st.subheader("Bulk Ingestion & Report Export")
-    st.markdown("Upload multiple images to run batch grading pipeline and download a formatted PDF summary report.")
+# -----------------------------------------------------------------------------
+# PAGE 2: BULK BATCH ASSESSMENT (CONVEYOR SIMULATION) - EXTRA EFFORT
+# -----------------------------------------------------------------------------
+elif selected_page.startswith("Bulk"):
+    st.markdown(f"<div class='main-title'>{SVG_ICONS['conveyor']} Bulk Batch Assessment</div>", unsafe_allow_html=True)
+    st.markdown("<div class='sub-title'>Industrial-grade bulk ingestion system for real-time batch grading across conveyor streams (Extra Efforts).</div>", unsafe_allow_html=True)
     
-    uploaded_files = st.file_uploader("Select multiple Mango images...", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
+    uploaded_files = st.file_uploader("Select Multiple Mango Images for Batch Evaluation", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
     
     if uploaded_files:
-        records = []
-        progress_bar = st.progress(0.0)
+        st.markdown(f"<div class='glass-card'>Loaded <b>{len(uploaded_files)}</b> images for batch processing.</div>", unsafe_allow_html=True)
         
-        for i, file in enumerate(uploaded_files):
-            file_bytes = np.asarray(bytearray(file.read()), dtype=np.uint8)
-            img_bgr = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
-            res = process_single_image(img_bgr)
+        if st.button("Run Batch Analysis on Ingested Stream", type="primary", use_container_width=True):
+            progress_bar = st.progress(0)
+            status_text = st.empty()
             
-            records.append({
-                'filename': file.name,
-                'color_pred': res['color'][0],
-                'color_conf': res['color'][1],
-                'texture_pred': res['texture'][0],
-                'texture_conf': res['texture'][1],
-                'geom_pred': res['geometry'][0],
-                'geom_conf': res['geometry'][1],
-                'dl_pred': res['dl'][0],
-                'dl_conf': res['dl'][1],
-                'final_pred': res['final']
-            })
+            batch_results = []
+            t_batch_start = time.time()
             
-            progress_bar.progress((i + 1) / len(uploaded_files))
+            for i, f in enumerate(uploaded_files):
+                file_bytes = np.asarray(bytearray(f.read()), dtype=np.uint8)
+                bgr = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
+                
+                # Execute verified modules (Herman & Siew Feng) + scaffolds
+                pred_m, conf_m, _, met_m, _ = analyze_ripeness_by_morphology(bgr)
+                pred_c, conf_c, _, _, _ = analyze_ripeness_by_color(bgr)
+                pred_t, conf_t, _, _, _ = analyze_ripeness_by_texture(bgr)
+                pred_g, conf_g, _, _, _ = analyze_ripeness_by_geometry(bgr)
+                
+                votes = [pred_m, pred_c, pred_t, pred_g]
+                consensus = max(set(votes), key=votes.count)
+                
+                batch_results.append({
+                    'filename': f.name,
+                    'morph_pred': pred_m,
+                    'morph_conf': conf_m,
+                    'color_pred': pred_c,
+                    'color_conf': conf_c,
+                    'texture_pred': pred_t,
+                    'texture_conf': conf_t,
+                    'geom_pred': pred_g,
+                    'geom_conf': conf_g,
+                    'final_pred': consensus,
+                    'blemish_ratio': met_m.get('blemish_area_ratio', 0)
+                })
+                
+                progress_bar.progress((i + 1) / len(uploaded_files))
+                status_text.text(f"Evaluated image {i+1} of {len(uploaded_files)}: {f.name}")
+                
+            elapsed_batch = time.time() - t_batch_start
+            avg_lat = (elapsed_batch / len(uploaded_files)) * 1000.0
             
-        df = pd.DataFrame(records)
-        st.dataframe(df, use_container_width=True)
-        
-        # Calculate summary statistics
-        counts = df['final_pred'].value_counts()
-        unripe_count = int(counts.get('Unripe', 0))
-        partially_ripe_count = int(counts.get('Partially Ripe', 0))
-        fully_ripe_count = int(counts.get('Fully Ripe', 0))
-        dominant_class = df['final_pred'].mode()[0] if not df.empty else "N/A"
-        
-        summary_stats = {
-            'total': len(uploaded_files),
-            'unripe': unripe_count,
-            'partially_ripe': partially_ripe_count,
-            'fully_ripe': fully_ripe_count,
-            'dominant': dominant_class
-        }
-        
-        # Display simple metrics row
-        m1, m2, m3, m4 = st.columns(4)
-        m1.metric("Total Processed", summary_stats['total'])
-        m2.metric("Unripe", summary_stats['unripe'])
-        m3.metric("Partially Ripe", summary_stats['partially_ripe'])
-        m4.metric("Fully Ripe", summary_stats['fully_ripe'])
-        
-        # Export PDF
-        st.write("### Export Options")
-        if st.button("Generate & Download PDF Report"):
-            with st.spinner("Generating Report PDF..."):
-                pdf_path = generate_pdf_report(records, summary_stats)
-                with open(pdf_path, "rb") as f:
-                    st.download_button(
-                        label="Download PDF Report",
-                        data=f,
-                        file_name="Mango_Ripeness_Grading_Report.pdf",
-                        mime="application/pdf"
-                    )
+            status_text.success(f"Ingested {len(uploaded_files)} images in {elapsed_batch:.2f}s ({avg_lat:.1f} ms/image).")
+            
+            df_batch = pd.DataFrame(batch_results)
+            
+            # Summary Metrics Row
+            counts = df_batch['final_pred'].value_counts()
+            c_unripe = counts.get('unripe', 0)
+            c_ripe = counts.get('fully_ripe', 0)
+            c_overripe = counts.get('overripe', 0)
+            
+            m1, m2, m3, m4 = st.columns(4)
+            m1.markdown(f"<div class='glass-card'><div class='metric-label'>Total Ingested</div><div class='metric-val'>{len(df_batch)}</div></div>", unsafe_allow_html=True)
+            m2.markdown(f"<div class='glass-card'><div class='metric-label'>Unripe (Stage 0)</div><div class='metric-val' style='color:#4ade80;'>{c_unripe}</div></div>", unsafe_allow_html=True)
+            m3.markdown(f"<div class='glass-card'><div class='metric-label'>Fully Ripe (Stage 3)</div><div class='metric-val' style='color:#fbbf24;'>{c_ripe}</div></div>", unsafe_allow_html=True)
+            m4.markdown(f"<div class='glass-card'><div class='metric-label'>Overripe (Defective)</div><div class='metric-val' style='color:#f87171;'>{c_overripe}</div></div>", unsafe_allow_html=True)
+            
+            # Batch Distribution Chart
+            fig, ax = plt.subplots(figsize=(8, 3.5), facecolor='#0b0f19')
+            ax.set_facecolor('#121826')
+            sns.countplot(data=df_batch, x='final_pred', order=['unripe', 'fully_ripe', 'overripe'], palette=['#22c55e', '#f59e0b', '#ef4444'], ax=ax)
+            ax.set_title("Batch Maturity Distribution", color='#f8fafc', fontsize=11, fontweight='bold')
+            ax.tick_params(colors='#94a3b8')
+            ax.spines['bottom'].set_color('#334155')
+            ax.spines['left'].set_color('#334155')
+            ax.spines['top'].set_visible(False)
+            ax.spines['right'].set_visible(False)
+            st.pyplot(fig)
+            
+            # Data Table
+            st.markdown(f"<div class='section-header'>{SVG_ICONS['table']} Batch Assessment Records</div>", unsafe_allow_html=True)
+            st.dataframe(df_batch[['filename', 'morph_pred', 'color_pred', 'texture_pred', 'geom_pred', 'final_pred', 'blemish_ratio']], use_container_width=True, hide_index=True)
+            
+            # Batch PDF Download
+            dominant = df_batch['final_pred'].mode()[0] if not df_batch.empty else 'N/A'
+            summary_stats = {
+                'total': len(df_batch),
+                'unripe': c_unripe,
+                'fully_ripe': c_ripe,
+                'overripe': c_overripe,
+                'dominant': dominant
+            }
+            batch_pdf = generate_pdf_report(batch_results, summary_stats)
+            with open(batch_pdf, "rb") as f:
+                st.download_button(
+                    label="Download Complete Batch Inspection PDF Report",
+                    data=f.read(),
+                    file_name="Batch_Inspection_Report.pdf",
+                    mime="application/pdf",
+                    use_container_width=True
+                )
 
-elif page == "Performance Benchmark":
-    st.subheader("Technique Benchmark & Model Comparisons")
-    st.markdown("Overview and model evaluation metrics compiled from Siew Feng, Kai Bin, Wei Kang, and Herman's playground notebooks.")
+# -----------------------------------------------------------------------------
+# PAGE 3: SYSTEM ANALYTICS & MODE A BENCHMARKS
+# -----------------------------------------------------------------------------
+elif selected_page.startswith("System"):
+    st.markdown(f"<div class='main-title'>{SVG_ICONS['analytics']} System Analytics & Comparative Benchmark</div>", unsafe_allow_html=True)
+    st.markdown("<div class='sub-title'>Empirical evaluation results and developmental status across team modules.</div>", unsafe_allow_html=True)
     
-    # Set up mock comparison metrics based on model validations
-    benchmark_data = pd.DataFrame({
-        'Developer': ['Siew Feng', 'Kai Bin', 'Wei Kang', 'Herman'],
-        'Technique': ['Color Space (HSV)', 'GLCM Texture Analysis', 'Geometry & Edges', 'Deep Learning (CNN)'],
-        'Accuracy (%)': [84.5, 78.2, 73.1, 93.6],
-        'Avg. Latency (ms)': [12.4, 45.1, 18.2, 115.6],
-        'Edge Cases Handling': ['Good', 'Moderate', 'Poor', 'Excellent'],
-        'Dataset Coverage': ['100%', '100%', '100%', '100%']
-    })
+    st.markdown(f"<div class='section-header'>{SVG_ICONS['table']} Mode A Table 2.1: Comparative Benchmark Across Image Processing Modules</div>", unsafe_allow_html=True)
     
-    st.table(benchmark_data)
+    benchmark_data = [
+        {
+            'Algorithm / Module': '1. Morphological Blemish Analysis (Cham Herman)',
+            'Development Status': 'Completed & Evaluated',
+            'Core Formulation': 'Multi-Scale Beucher Gradient & Black-Hat Residual Fusion',
+            'Test Accuracy (%)': '93.06%',
+            'Macro F1 (%)': '93.10%',
+            'Latency (ms/img)': '29.26 ms'
+        },
+        {
+            'Algorithm / Module': '2. Color-Space Thresholding (Lum Siew Feng)',
+            'Development Status': 'Completed & Evaluated',
+            'Core Formulation': 'HSV Statistical Chrominance & Support Vector Classification',
+            'Test Accuracy (%)': '88.89%',
+            'Macro F1 (%)': '88.92%',
+            'Latency (ms/img)': '12.45 ms'
+        },
+        {
+            'Algorithm / Module': '3. Texture & Surface Analysis (Wong Kai Bin)',
+            'Development Status': 'Pending Notebook (Scaffold)',
+            'Core Formulation': 'GLCM Contrast & Sobel Roughness (Baseline Prototype)',
+            'Test Accuracy (%)': 'Pending',
+            'Macro F1 (%)': 'Pending',
+            'Latency (ms/img)': '~24.80 ms'
+        },
+        {
+            'Algorithm / Module': '4. Edge & Shape Deformity (Yeow Wei Kang)',
+            'Development Status': 'Pending Notebook (Scaffold)',
+            'Core Formulation': 'Canny Edge Density & Contour Circularity (Baseline Prototype)',
+            'Test Accuracy (%)': 'Pending',
+            'Macro F1 (%)': 'Pending',
+            'Latency (ms/img)': '~15.60 ms'
+        }
+    ]
     
-    # Generate interactive charts
-    col1, col2 = st.columns(2)
+    df_bm = pd.DataFrame(benchmark_data)
+    st.dataframe(df_bm, use_container_width=True, hide_index=True)
     
-    with col1:
-        st.write("#### Accuracy Comparison (%)")
-        fig, ax = plt.subplots(figsize=(6, 4))
-        sns.barplot(x='Developer', y='Accuracy (%)', data=benchmark_data, palette='Oranges_d', ax=ax)
-        ax.set_ylim(50, 100)
-        for p in ax.patches:
-            ax.annotate(f"{p.get_height():.1f}%", (p.get_x() + p.get_width() / 2., p.get_height() - 5),
-                        ha='center', va='center', xytext=(0, 5), textcoords='offset points', color='white', fontweight='bold')
-        fig.patch.set_facecolor('#0e1117')
-        ax.set_facecolor('#0e1117')
-        ax.tick_params(colors='white')
-        ax.xaxis.label.set_color('white')
-        ax.yaxis.label.set_color('white')
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown(f"<div class='section-header'>{SVG_ICONS['analytics']} Verified Modules Performance Visualisation</div>", unsafe_allow_html=True)
+    c1, c2 = st.columns(2)
+    
+    verified_df = pd.DataFrame([
+        {'Module': 'Morphology (Herman)', 'Test Accuracy (%)': 93.06, 'Latency (ms)': 29.26},
+        {'Module': 'Color-Space (Siew Feng)', 'Test Accuracy (%)': 88.89, 'Latency (ms)': 12.45}
+    ])
+    
+    with c1:
+        fig, ax = plt.subplots(figsize=(6, 3.5), facecolor='#0b0f19')
+        ax.set_facecolor('#121826')
+        sns.barplot(data=verified_df, x='Module', y='Test Accuracy (%)', palette=['#3b82f6', '#f59e0b'], ax=ax)
+        ax.set_title("Test Accuracy Comparison (Verified Modules)", color='#f8fafc', fontsize=10, fontweight='bold')
+        ax.set_ylim(70, 100)
+        ax.axhline(85, color='#ef4444', linestyle='--', label='Target Accuracy (85%)')
+        ax.tick_params(colors='#94a3b8', labelsize=8)
+        ax.legend(facecolor='#1e293b', edgecolor='none', labelcolor='#f8fafc')
+        ax.spines['bottom'].set_color('#334155')
+        ax.spines['left'].set_color('#334155')
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
         st.pyplot(fig)
         
-    with col2:
-        st.write("#### Avg. Inference Latency (ms) - log scale")
-        fig, ax = plt.subplots(figsize=(6, 4))
-        sns.barplot(x='Developer', y='Avg. Latency (ms)', data=benchmark_data, palette='Greens_d', ax=ax)
-        fig.patch.set_facecolor('#0e1117')
-        ax.set_facecolor('#0e1117')
-        ax.tick_params(colors='white')
-        ax.xaxis.label.set_color('white')
-        ax.yaxis.label.set_color('white')
+    with c2:
+        fig, ax = plt.subplots(figsize=(6, 3.5), facecolor='#0b0f19')
+        ax.set_facecolor('#121826')
+        sns.barplot(data=verified_df, x='Module', y='Latency (ms)', palette=['#10b981', '#6366f1'], ax=ax)
+        ax.set_title("Processing Latency per Image (ms)", color='#f8fafc', fontsize=10, fontweight='bold')
+        ax.axhline(200, color='#ef4444', linestyle='--', label='Max Target Latency (200 ms)')
+        ax.tick_params(colors='#94a3b8', labelsize=8)
+        ax.legend(facecolor='#1e293b', edgecolor='none', labelcolor='#f8fafc')
+        ax.spines['bottom'].set_color('#334155')
+        ax.spines['left'].set_color('#334155')
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
         st.pyplot(fig)
+        
+    st.markdown(f"<div class='section-header'>{SVG_ICONS['table']} SMART Objectives Verification Matrix</div>", unsafe_allow_html=True)
+    smart_data = [
+        {
+            'SMART Objective': 'Objective 1: Multi-Algorithm Suite',
+            'Target Criterion': 'Implement 4 distinct classical computer vision algorithms',
+            'Current Measured Status': '2 Completed (Herman & Siew Feng) + 2 Scaffolds (Kai Bin & Wei Kang)',
+            'Fulfillment': 'In Progress (50% Finalized)'
+        },
+        {
+            'SMART Objective': 'Objective 2: Classification Accuracy',
+            'Target Criterion': 'Achieve minimum >= 85% classification accuracy',
+            'Current Measured Status': '93.06% (Herman Morphology) | 88.89% (Siew Feng Color)',
+            'Fulfillment': 'Target Exceeded'
+        },
+        {
+            'SMART Objective': 'Objective 3: Operational Latency',
+            'Target Criterion': 'Execute with per-image latency < 200 ms',
+            'Current Measured Status': '29.26 ms (Herman) | 12.45 ms (Siew Feng)',
+            'Fulfillment': 'Target Exceeded'
+        }
+    ]
+    st.dataframe(pd.DataFrame(smart_data), use_container_width=True, hide_index=True)
