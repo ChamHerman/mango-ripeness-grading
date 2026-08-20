@@ -2,3 +2,5 @@
 reasonix.toml
 /docs
 CONTEXT.md
+/src/__pycache__
+/__pycache__
