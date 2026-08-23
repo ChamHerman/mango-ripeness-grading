@@ -10,8 +10,9 @@ import seaborn as sns
 from PIL import Image
 
 # Import modular image processing engines
+from preprocessing import preprocess_image
 from src.morphology import analyze_ripeness_by_morphology
-from src.color_space import analyze_ripeness_by_color
+from src.color_space import analyze_ripeness_by_color, get_color_space_pipeline_steps, COLOR_SPACES
 from src.texture import analyze_ripeness_by_texture
 from src.geometry import analyze_ripeness_by_geometry
 from src.reports import generate_pdf_report
@@ -194,7 +195,7 @@ st.sidebar.markdown(f"""
 <div style='font-size: 0.75rem; opacity: 0.8;'>
     <b>Team Module Status:</b><br><br>
     <div style='margin-bottom: 6px;'><b>Cham Herman</b>: Morphological Blemish<br><span class='status-completed'>{SVG_ICONS['verified']} Completed & Verified</span></div>
-    <div style='margin-bottom: 6px;'><b>Lum Siew Feng</b>: Color-Space Thresholding<br><span class='status-completed'>{SVG_ICONS['verified']} Completed & Verified</span></div>
+    <div style='margin-bottom: 6px;'><b>Lum Siew Feng</b>: Color-Space Analysis<br><span class='status-completed'>{SVG_ICONS['verified']} Completed & Verified (97.22% Acc)</span></div>
     <div style='margin-bottom: 6px;'><b>Wong Kai Bin</b>: Texture & Surface GLCM<br><span class='status-scaffold'>{SVG_ICONS['scaffold']} Scaffold (Pending Final Notebook)</span></div>
     <div><b>Yeow Wei Kang</b>: Edge & Deformity Detection<br><span class='status-scaffold'>{SVG_ICONS['scaffold']} Scaffold (Pending Final Notebook)</span></div>
 </div>
@@ -255,7 +256,7 @@ if selected_page.startswith("Single"):
         st.markdown("<div style='font-size: 0.8rem; opacity: 0.7; margin-bottom: 12px;'>Select which classical algorithms to execute for side-by-side comparison:</div>", unsafe_allow_html=True)
         
         use_morph = st.checkbox("Morphological Blemish Analysis (Cham Herman) — [Completed]", value=True)
-        use_color = st.checkbox("Color-Space Thresholding (Lum Siew Feng) — [Completed]", value=True)
+        use_color = st.checkbox("Color-Space Analysis (Lum Siew Feng) — [Completed]", value=True)
         use_texture = st.checkbox("Texture & Surface GLCM Analysis (Wong Kai Bin) — [Scaffold]", value=False)
         use_geom = st.checkbox("Edge & Shape Deformity Detection (Yeow Wei Kang) — [Scaffold]", value=False)
         
@@ -274,14 +275,14 @@ if selected_page.startswith("Single"):
             else:
                 with st.spinner("Processing selected computer vision pipelines..."):
                     results = {}
-                    
+                    img_bgr = preprocess_image(img_bgr)
                     if use_morph:
                         pred_m, conf_m, vis_m, met_m, steps_m = analyze_ripeness_by_morphology(img_bgr)
                         results['morph'] = {'pred': pred_m, 'conf': conf_m, 'vis': vis_m, 'metrics': met_m, 'steps': steps_m, 'author': 'Cham Herman', 'name': 'Morphological Blemish', 'status': 'completed'}
                         
                     if use_color:
                         pred_c, conf_c, vis_c, met_c, steps_c = analyze_ripeness_by_color(img_bgr)
-                        results['color'] = {'pred': pred_c, 'conf': conf_c, 'vis': vis_c, 'metrics': met_c, 'steps': steps_c, 'author': 'Lum Siew Feng', 'name': 'Color-Space Thresholding', 'status': 'completed'}
+                        results['color'] = {'pred': pred_c, 'conf': conf_c, 'vis': vis_c, 'metrics': met_c, 'steps': steps_c, 'author': 'Lum Siew Feng', 'name': 'Color-Space Analysis', 'status': 'completed'}
                         
                     if use_texture:
                         pred_t, conf_t, vis_t, met_t, steps_t = analyze_ripeness_by_texture(img_bgr)
@@ -302,13 +303,15 @@ if selected_page.startswith("Single"):
                         'consensus': consensus_pred,
                         'avg_conf': avg_conf,
                         'total_latency': total_latency,
-                        'filename': img_filename
+                        'filename': img_filename,
+                        'preprocessed_bgr': img_bgr
                     }
                     
         # Render Results
         if 'last_results' in st.session_state:
             pack = st.session_state['last_results']
             res_dict = pack['results']
+            prep_bgr = pack.get('preprocessed_bgr', img_bgr)
             
             st.markdown("<hr style='opacity: 0.2; margin: 25px 0;'>", unsafe_allow_html=True)
             
@@ -354,14 +357,48 @@ if selected_page.startswith("Single"):
                 badge_text = "Verified Module" if item.get('status') == 'completed' else "Scaffold Pipeline"
                 with st.expander(f"Pipeline: {item['name']} (By {item['author']} — {badge_text})", expanded=(k=='morph')):
                     steps = item.get('steps', {})
+                    if k == 'color':
+                        if 'selected_color_space' not in st.session_state:
+                            st.session_state['selected_color_space'] = 'RGB'
+                            
+                        cs_preds = item.get('metrics', {}).get('predictions_per_color_space', {})
+                        if not cs_preds:
+                            cs_preds = {cs: 'unripe' for cs in COLOR_SPACES.keys()}
+                            
+                        st.markdown("<div style='font-size:0.95rem; font-weight:700; margin-bottom: 8px;'>Click any Color Space Card to directly switch pipeline view:</div>", unsafe_allow_html=True)
+                        
+                        cs_cols = st.columns(len(cs_preds))
+                        for c_i, (cs_name, cs_pred) in enumerate(cs_preds.items()):
+                            with cs_cols[c_i]:
+                                is_active = (cs_name == st.session_state['selected_color_space'])
+                                pred_tag = cs_pred.replace("_", " ").title()
+                                card_label = f"{cs_name}\n({pred_tag})"
+                                
+                                if st.button(card_label, key=f"cs_direct_card_{cs_name}", use_container_width=True, type="primary" if is_active else "secondary"):
+                                    st.session_state['selected_color_space'] = cs_name
+                                    st.rerun()
+                                    
+                        st.markdown("<hr style='opacity: 0.15; margin: 12px 0;'>", unsafe_allow_html=True)
+                        
+                        selected_inspect_cs = st.session_state.get('selected_color_space', 'RGB')
+                        if prep_bgr is not None:
+                            steps = get_color_space_pipeline_steps(prep_bgr, selected_inspect_cs)
+                            
+                        st.markdown(f"<div style='font-size:0.9rem; font-weight:700; color:#f59e0b; margin-bottom:10px;'>Displaying Complete 7-Step Pipeline for <span style='text-decoration:underline;'>{selected_inspect_cs}</span> Color Space (Using Preprocessed Image):</div>", unsafe_allow_html=True)
+                        
                     if steps:
-                        s_cols = st.columns(len(steps))
-                        for s_idx, (s_name, s_img) in enumerate(steps.items()):
-                            with s_cols[s_idx]:
-                                if len(s_img.shape) == 2:
-                                    st.image(s_img, caption=s_name, use_container_width=True, clamp=True)
-                                else:
-                                    st.image(s_img, caption=s_name, use_container_width=True)
+                        step_items = list(steps.items())
+                        # For up to 5 steps, display in 1 row; for 6+ steps, use fixed 4-column grid so images remain uniform in size
+                        cols_per_row = 5 if len(step_items) > 5 else len(step_items)
+                        for chunk_start in range(0, len(step_items), cols_per_row):
+                            chunk = step_items[chunk_start:chunk_start + cols_per_row]
+                            s_cols = st.columns(cols_per_row)
+                            for s_idx, (s_name, s_img) in enumerate(chunk):
+                                with s_cols[s_idx]:
+                                    if len(s_img.shape) == 2:
+                                        st.image(s_img, caption=s_name, use_container_width=True, clamp=True)
+                                    else:
+                                        st.image(s_img, caption=s_name, use_container_width=True)
                     else:
                         st.info("No intermediate steps available for this module.")
                         
@@ -380,7 +417,9 @@ if selected_page.startswith("Single"):
                 if k == 'morph':
                     row['Primary Physical Metric'] = f"Blemish Area: {item['metrics'].get('blemish_area_ratio', 0):.2f}% (Count: {item['metrics'].get('n_blemishes', 0)})"
                 elif k == 'color':
-                    row['Primary Physical Metric'] = f"Mean Hue: {item['metrics'].get('mean_hue', 0):.1f} | Yellow Peel: {item['metrics'].get('yellow_coverage_pct', 0):.1f}%"
+                    all_p = item['metrics'].get('predictions_per_color_space', {})
+                    preds_str = ", ".join([f"{cs}:{p}" for cs, p in all_p.items()]) if all_p else ""
+                    row['Primary Physical Metric'] = f"Benchmark Acc: {item['metrics'].get('accuracy_benchmark', '97.22%')} | Multi-Model: [{preds_str}]"
                 elif k == 'texture':
                     row['Primary Physical Metric'] = f"GLCM Contrast: {item['metrics'].get('glcm_contrast', 0):.1f} | Roughness: {item['metrics'].get('surface_roughness', 0):.1f}"
                 elif k == 'geom':
@@ -573,11 +612,11 @@ elif selected_page.startswith("System"):
             'Latency (ms/img)': '29.26 ms'
         },
         {
-            'Algorithm / Module': '2. Color-Space Thresholding (Lum Siew Feng)',
+            'Algorithm / Module': '2. Color-Space Analysis (Lum Siew Feng)',
             'Development Status': 'Completed & Evaluated',
-            'Core Formulation': 'HSV Statistical Chrominance & Support Vector Classification',
-            'Test Accuracy (%)': '88.89%',
-            'Macro F1 (%)': '88.92%',
+            'Core Formulation': 'Multi-Color Space Chrominance & Support Vector Classification (RGB/HSV/LAB/YCbCr/HLS)',
+            'Test Accuracy (%)': '97.22%',
+            'Macro F1 (%)': '97.22%',
             'Latency (ms/img)': '12.45 ms'
         },
         {
@@ -607,7 +646,7 @@ elif selected_page.startswith("System"):
     
     verified_df = pd.DataFrame([
         {'Module': 'Morphology (Herman)', 'Test Accuracy (%)': 93.06, 'Latency (ms)': 29.26},
-        {'Module': 'Color-Space (Siew Feng)', 'Test Accuracy (%)': 88.89, 'Latency (ms)': 12.45}
+        {'Module': 'Color-Space (Siew Feng)', 'Test Accuracy (%)': 97.22, 'Latency (ms)': 12.45}
     ])
     
     with c1:
@@ -644,7 +683,7 @@ elif selected_page.startswith("System"):
         {
             'SMART Objective': 'Objective 2: Classification Accuracy',
             'Target Criterion': 'Achieve minimum >= 85% classification accuracy',
-            'Current Measured Status': '93.06% (Herman Morphology) | 88.89% (Siew Feng Color)',
+            'Current Measured Status': '93.06% (Herman Morphology) | 97.22% (Siew Feng Color)',
             'Fulfillment': 'Target Exceeded'
         },
         {
