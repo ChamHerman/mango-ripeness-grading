@@ -2,3 +2,5 @@ from .color_space import analyze_ripeness_by_color
 from .texture import analyze_ripeness_by_texture
 from .geometry import analyze_ripeness_by_geometry
 from .morphology import analyze_ripeness_by_morphology
+from .preprocessing import preprocess_image
+

@@ -10,7 +10,7 @@ import seaborn as sns
 from PIL import Image
 
 # Import modular image processing engines
-from preprocessing import preprocess_image
+from src.preprocessing import preprocess_image
 from src.morphology import analyze_ripeness_by_morphology
 from src.color_space import analyze_ripeness_by_color, get_color_space_pipeline_steps, COLOR_SPACES
 from src.texture import analyze_ripeness_by_texture
