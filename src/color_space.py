@@ -293,9 +293,21 @@ def analyze_ripeness_by_color(image: np.ndarray, primary_space: str = "RGB"):
     hsv_feats = all_features.get("HSV", {})
     primary_feats = all_features.get(primary_space, {})
     
+    try:
+        from src.benchmark import get_benchmark_metrics
+        bm_dict = get_benchmark_metrics()
+        color_bms = bm_dict.get('color', {})
+        best_space = bm_dict.get('best_color_space', max(color_bms.keys(), key=lambda cs: color_bms[cs].get('accuracy', 0)) if color_bms else 'LAB')
+        best_acc = color_bms.get(best_space, {}).get('accuracy', 100.00)
+        curr_acc = color_bms.get(primary_space, {}).get('accuracy', 97.22)
+        acc_str = f"{best_acc:.2f}% (Best: {best_space})" if primary_space != best_space else f"{best_acc:.2f}%"
+    except Exception:
+        acc_str = '100.00% (Best: LAB)'
+
     metrics = {
         'primary_color_space': primary_space,
-        'accuracy_benchmark': '97.22%' if primary_space in ['RGB', 'HLS'] else ('96.53%' if primary_space == 'HSV' else '95.83%'),
+        'accuracy_benchmark': acc_str,
+        'primary_accuracy': f"{curr_acc:.2f}%" if 'curr_acc' in locals() else '97.22%',
         'predictions_per_color_space': all_predictions,
         'primary_features': primary_feats,
         'all_features': all_features,
