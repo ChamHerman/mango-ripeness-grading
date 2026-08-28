@@ -10,12 +10,13 @@ import seaborn as sns
 from PIL import Image
 
 # Import modular image processing engines
-from preprocessing import preprocess_image
+from src.preprocessing import preprocess_image
 from src.morphology import analyze_ripeness_by_morphology
 from src.color_space import analyze_ripeness_by_color, get_color_space_pipeline_steps, COLOR_SPACES
 from src.texture import analyze_ripeness_by_texture
 from src.geometry import analyze_ripeness_by_geometry
 from src.reports import generate_pdf_report
+from src.benchmark import get_benchmark_metrics
 
 # Page Configuration
 st.set_page_config(
@@ -190,12 +191,19 @@ selected_page = st.sidebar.radio(
      "System Analytics & Comparative Benchmark"]
 )
 
+# Retrieve Dynamic Benchmark Metrics
+bm_metrics = get_benchmark_metrics()
+morph_bm = bm_metrics.get('morphology', {})
+best_cs = bm_metrics.get('best_color_space', 'LAB')
+best_cs_acc = bm_metrics.get('best_color_accuracy', 100.00)
+best_cs_f1 = bm_metrics.get('best_color_f1', 100.00)
+
 st.sidebar.markdown("<br><hr style='opacity: 0.2;'>", unsafe_allow_html=True)
 st.sidebar.markdown(f"""
 <div style='font-size: 0.75rem; opacity: 0.8;'>
     <b>Team Module Status:</b><br><br>
-    <div style='margin-bottom: 6px;'><b>Cham Herman</b>: Morphological Blemish<br><span class='status-completed'>{SVG_ICONS['verified']} Completed & Verified</span></div>
-    <div style='margin-bottom: 6px;'><b>Lum Siew Feng</b>: Color-Space Analysis<br><span class='status-completed'>{SVG_ICONS['verified']} Completed & Verified (97.22% Acc)</span></div>
+    <div style='margin-bottom: 6px;'><b>Cham Herman</b>: Morphological Blemish<br><span class='status-completed'>{SVG_ICONS['verified']} Completed ({morph_bm.get('accuracy', 93.06):.2f}% Acc)</span></div>
+    <div style='margin-bottom: 6px;'><b>Lum Siew Feng</b>: Color-Space Analysis<br><span class='status-completed'>{SVG_ICONS['verified']} Completed ({best_cs_acc:.2f}% Acc — Best: {best_cs})</span></div>
     <div style='margin-bottom: 6px;'><b>Wong Kai Bin</b>: Texture & Surface GLCM<br><span class='status-scaffold'>{SVG_ICONS['scaffold']} Scaffold (Pending Final Notebook)</span></div>
     <div><b>Yeow Wei Kang</b>: Edge & Deformity Detection<br><span class='status-scaffold'>{SVG_ICONS['scaffold']} Scaffold (Pending Final Notebook)</span></div>
 </div>
@@ -602,22 +610,34 @@ elif selected_page.startswith("System"):
     
     st.markdown(f"<div class='section-header'>{SVG_ICONS['table']} Mode A Table 2.1: Comparative Benchmark Across Image Processing Modules</div>", unsafe_allow_html=True)
     
+    active_cs = st.session_state.get('selected_color_space', 'RGB')
+    color_bm_active = bm_metrics.get('color', {}).get(active_cs, {})
+    
+    morph_acc_str = f"{morph_bm.get('accuracy', 93.06):.2f}%"
+    morph_f1_str = f"{morph_bm.get('f1', 93.10):.2f}%"
+    morph_lat_str = f"{morph_bm.get('latency_ms', 29.26):.2f} ms"
+    
+    # Show overall highest accuracy among the 5 color spaces as main benchmark
+    color_max_acc_str = f"{best_cs_acc:.2f}% (Best: {best_cs})"
+    color_max_f1_str = f"{best_cs_f1:.2f}% (Best: {best_cs})"
+    color_lat_str = f"{color_bm_active.get('latency_ms', 12.45):.2f} ms"
+    
     benchmark_data = [
         {
             'Algorithm / Module': '1. Morphological Blemish Analysis (Cham Herman)',
             'Development Status': 'Completed & Evaluated',
             'Core Formulation': 'Multi-Scale Beucher Gradient & Black-Hat Residual Fusion',
-            'Test Accuracy (%)': '93.06%',
-            'Macro F1 (%)': '93.10%',
-            'Latency (ms/img)': '29.26 ms'
+            'Test Accuracy (%)': morph_acc_str,
+            'Macro F1 (%)': morph_f1_str,
+            'Latency (ms/img)': morph_lat_str
         },
         {
-            'Algorithm / Module': '2. Color-Space Analysis (Lum Siew Feng)',
+            'Algorithm / Module': f'2. Color-Space Analysis (Lum Siew Feng) — Top Model ({best_cs})',
             'Development Status': 'Completed & Evaluated',
             'Core Formulation': 'Multi-Color Space Chrominance & Support Vector Classification (RGB/HSV/LAB/YCbCr/HLS)',
-            'Test Accuracy (%)': '97.22%',
-            'Macro F1 (%)': '97.22%',
-            'Latency (ms/img)': '12.45 ms'
+            'Test Accuracy (%)': color_max_acc_str,
+            'Macro F1 (%)': color_max_f1_str,
+            'Latency (ms/img)': color_lat_str
         },
         {
             'Algorithm / Module': '3. Texture & Surface Analysis (Wong Kai Bin)',
@@ -640,13 +660,26 @@ elif selected_page.startswith("System"):
     df_bm = pd.DataFrame(benchmark_data)
     st.dataframe(df_bm, use_container_width=True, hide_index=True)
     
+    # Detailed 5 Color Spaces Benchmark Table
+    st.markdown("<div style='font-size:0.9rem; font-weight:700; margin-top:10px; margin-bottom:5px;'>Detailed Benchmark Accuracy Across All 5 Color Spaces:</div>", unsafe_allow_html=True)
+    all_cs_rows = []
+    for cs_name in ['RGB', 'HSV', 'LAB', 'YCbCr', 'HLS']:
+        cs_m = bm_metrics.get('color', {}).get(cs_name, {})
+        all_cs_rows.append({
+            'Color Space': cs_name,
+            'Test Accuracy (%)': f"{cs_m.get('accuracy', 0):.2f}%",
+            'Macro F1 (%)': f"{cs_m.get('f1', 0):.2f}%",
+            'Ranking Status': 'Top Benchmark Model' if cs_name == best_cs else 'Evaluated Sub-Model'
+        })
+    st.dataframe(pd.DataFrame(all_cs_rows), use_container_width=True, hide_index=True)
+    
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown(f"<div class='section-header'>{SVG_ICONS['analytics']} Verified Modules Performance Visualisation</div>", unsafe_allow_html=True)
     c1, c2 = st.columns(2)
     
     verified_df = pd.DataFrame([
-        {'Module': 'Morphology (Herman)', 'Test Accuracy (%)': 93.06, 'Latency (ms)': 29.26},
-        {'Module': 'Color-Space (Siew Feng)', 'Test Accuracy (%)': 97.22, 'Latency (ms)': 12.45}
+        {'Module': 'Morphology (Herman)', 'Test Accuracy (%)': morph_bm.get('accuracy', 93.06), 'Latency (ms)': morph_bm.get('latency_ms', 29.26)},
+        {'Module': f'Color-Space (Best: {best_cs})', 'Test Accuracy (%)': best_cs_acc, 'Latency (ms)': color_bm_active.get('latency_ms', 12.45)}
     ])
     
     with c1:
@@ -654,7 +687,7 @@ elif selected_page.startswith("System"):
         ax.set_facecolor('none')
         sns.barplot(data=verified_df, x='Module', y='Test Accuracy (%)', palette=['#3b82f6', '#f59e0b'], ax=ax)
         ax.set_title("Test Accuracy Comparison (Verified Modules)", fontsize=10, fontweight='bold')
-        ax.set_ylim(70, 100)
+        ax.set_ylim(70, 105)
         ax.axhline(85, color='#ef4444', linestyle='--', label='Target Accuracy (85%)')
         ax.legend(facecolor='none', edgecolor='none')
         ax.spines['top'].set_visible(False)
@@ -683,13 +716,13 @@ elif selected_page.startswith("System"):
         {
             'SMART Objective': 'Objective 2: Classification Accuracy',
             'Target Criterion': 'Achieve minimum >= 85% classification accuracy',
-            'Current Measured Status': '93.06% (Herman Morphology) | 97.22% (Siew Feng Color)',
+            'Current Measured Status': f"{morph_acc_str} (Herman Morphology) | {best_cs_acc:.2f}% (Siew Feng Color - Best: {best_cs})",
             'Fulfillment': 'Target Exceeded'
         },
         {
             'SMART Objective': 'Objective 3: Operational Latency',
             'Target Criterion': 'Execute with per-image latency < 200 ms',
-            'Current Measured Status': '29.26 ms (Herman) | 12.45 ms (Siew Feng)',
+            'Current Measured Status': f"{morph_lat_str} (Herman) | {color_lat_str} (Siew Feng)",
             'Fulfillment': 'Target Exceeded'
         }
     ]
