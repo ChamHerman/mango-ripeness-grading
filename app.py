@@ -197,6 +197,10 @@ morph_bm = bm_metrics.get('morphology', {})
 best_cs = bm_metrics.get('best_color_space', 'LAB')
 best_cs_acc = bm_metrics.get('best_color_accuracy', 100.00)
 best_cs_f1 = bm_metrics.get('best_color_f1', 100.00)
+texture_bm = bm_metrics.get('texture', {})
+texture_acc = texture_bm.get('accuracy', 96.53)
+texture_f1 = texture_bm.get('f1', 96.52)
+texture_lat = texture_bm.get('latency_ms', 18.30)
 
 st.sidebar.markdown("<br><hr style='opacity: 0.2;'>", unsafe_allow_html=True)
 st.sidebar.markdown(f"""
@@ -204,7 +208,7 @@ st.sidebar.markdown(f"""
     <b>Team Module Status:</b><br><br>
     <div style='margin-bottom: 6px;'><b>Cham Herman</b>: Morphological Blemish<br><span class='status-completed'>{SVG_ICONS['verified']} Completed ({morph_bm.get('accuracy', 93.06):.2f}% Acc)</span></div>
     <div style='margin-bottom: 6px;'><b>Lum Siew Feng</b>: Color-Space Analysis<br><span class='status-completed'>{SVG_ICONS['verified']} Completed ({best_cs_acc:.2f}% Acc — Best: {best_cs})</span></div>
-    <div style='margin-bottom: 6px;'><b>Wong Kai Bin</b>: Texture & Surface GLCM<br><span class='status-scaffold'>{SVG_ICONS['scaffold']} Scaffold (Pending Final Notebook)</span></div>
+    <div style='margin-bottom: 6px;'><b>Wong Kai Bin</b>: Texture & Surface GLCM<br><span class='status-completed'>{SVG_ICONS['verified']} Completed ({texture_acc:.2f}% Acc)</span></div>
     <div><b>Yeow Wei Kang</b>: Edge & Deformity Detection<br><span class='status-scaffold'>{SVG_ICONS['scaffold']} Scaffold (Pending Final Notebook)</span></div>
 </div>
 """, unsafe_allow_html=True)
@@ -265,7 +269,7 @@ if selected_page.startswith("Single"):
         
         use_morph = st.checkbox("Morphological Blemish Analysis (Cham Herman) — [Completed]", value=True)
         use_color = st.checkbox("Color-Space Analysis (Lum Siew Feng) — [Completed]", value=True)
-        use_texture = st.checkbox("Texture & Surface GLCM Analysis (Wong Kai Bin) — [Scaffold]", value=False)
+        use_texture = st.checkbox("Texture & Surface GLCM Analysis (Wong Kai Bin) — [Completed]", value=True)
         use_geom = st.checkbox("Edge & Shape Deformity Detection (Yeow Wei Kang) — [Scaffold]", value=False)
         
         selected_count = sum([use_morph, use_color, use_texture, use_geom])
@@ -294,7 +298,7 @@ if selected_page.startswith("Single"):
                         
                     if use_texture:
                         pred_t, conf_t, vis_t, met_t, steps_t = analyze_ripeness_by_texture(img_bgr)
-                        results['texture'] = {'pred': pred_t, 'conf': conf_t, 'vis': vis_t, 'metrics': met_t, 'steps': steps_t, 'author': 'Wong Kai Bin', 'name': 'Texture & Surface GLCM', 'status': 'scaffold'}
+                        results['texture'] = {'pred': pred_t, 'conf': conf_t, 'vis': vis_t, 'metrics': met_t, 'steps': steps_t, 'author': 'Wong Kai Bin', 'name': 'Texture & Surface GLCM', 'status': 'completed'}
                         
                     if use_geom:
                         pred_g, conf_g, vis_g, met_g, steps_g = analyze_ripeness_by_geometry(img_bgr)
@@ -429,7 +433,7 @@ if selected_page.startswith("Single"):
                     preds_str = ", ".join([f"{cs}:{p}" for cs, p in all_p.items()]) if all_p else ""
                     row['Primary Physical Metric'] = f"Benchmark Acc: {item['metrics'].get('accuracy_benchmark', '97.22%')} | Multi-Model: [{preds_str}]"
                 elif k == 'texture':
-                    row['Primary Physical Metric'] = f"GLCM Contrast: {item['metrics'].get('glcm_contrast', 0):.1f} | Roughness: {item['metrics'].get('surface_roughness', 0):.1f}"
+                    row['Primary Physical Metric'] = f"GLCM Contrast: {item['metrics'].get('glcm_contrast', 0):.1f} | LBP Entropy: {item['metrics'].get('lbp_entropy', 0):.2f} (Model: {item['metrics'].get('classifier', 'KNN')})"
                 elif k == 'geom':
                     row['Primary Physical Metric'] = f"Edge Density: {item['metrics'].get('edge_density_pct', 0):.2f}% | Aspect Ratio: {item['metrics'].get('bounding_aspect_ratio', 0):.2f}"
                     
@@ -438,7 +442,7 @@ if selected_page.startswith("Single"):
             df_metrics = pd.DataFrame(table_rows)
             st.dataframe(df_metrics, use_container_width=True, hide_index=True)
             
-            # PDF Report Export Option (Extra Effort)
+            # PDF Report Export Option
             st.markdown("<br>", unsafe_allow_html=True)
             rep_col1, rep_col2 = st.columns([1, 2])
             with rep_col1:
@@ -456,153 +460,95 @@ if selected_page.startswith("Single"):
                         'final_pred': pack['consensus']
                     }]
                     summary_stats = {
-                        'total': 1,
-                        'unripe': 1 if pack['consensus']=='unripe' else 0,
-                        'fully_ripe': 1 if pack['consensus']=='fully_ripe' else 0,
-                        'overripe': 1 if pack['consensus']=='overripe' else 0,
-                        'dominant': pack['consensus']
+                        'total_assessed': 1,
+                        'consensus_ripe': 1 if pack['consensus'] == 'fully_ripe' else 0,
+                        'consensus_unripe': 1 if pack['consensus'] == 'unripe' else 0,
+                        'consensus_overripe': 1 if pack['consensus'] == 'overripe' else 0,
+                        'avg_confidence': pack['avg_conf']
                     }
-                    pdf_file = generate_pdf_report(rep_results, summary_stats)
-                    with open(pdf_file, "rb") as f:
-                        st.download_button(
-                            label="Download Generated PDF Report",
-                            data=f.read(),
-                            file_name=f"Inspection_Report_{pack['filename']}.pdf",
-                            mime="application/pdf",
-                            use_container_width=True
-                        )
-
-# -----------------------------------------------------------------------------
-# PAGE 2: BULK BATCH ASSESSMENT (CONVEYOR SIMULATION) - EXTRA EFFORT
-# -----------------------------------------------------------------------------
-elif selected_page.startswith("Bulk"):
-    st.markdown(f"<div class='main-title'>{SVG_ICONS['conveyor']} Bulk Batch Assessment</div>", unsafe_allow_html=True)
-    st.markdown("<div class='sub-title'>Industrial-grade bulk ingestion system for real-time batch grading across conveyor streams (Extra Efforts).</div>", unsafe_allow_html=True)
-    
-    # State key for clearing batch images
-    if 'batch_uploader_key' not in st.session_state:
-        st.session_state['batch_uploader_key'] = 0
-        
-    uploaded_files = st.file_uploader(
-        "Select Multiple Mango Images for Batch Evaluation",
-        type=["jpg", "jpeg", "png"],
-        accept_multiple_files=True,
-        key=f"batch_uploader_{st.session_state['batch_uploader_key']}"
-    )
-    
-    if uploaded_files:
-        st.markdown(f"<div class='glass-card'>Loaded <b>{len(uploaded_files)}</b> images for batch processing.</div>", unsafe_allow_html=True)
-        
-        btn_c1, btn_c2 = st.columns([2, 1])
-        with btn_c1:
-            run_batch = st.button("Run Batch Analysis on Ingested Stream", type="primary", use_container_width=True)
-        with btn_c2:
-            clear_batch = st.button("Delete All Images / Clear Batch", use_container_width=True)
-            
-        if clear_batch:
-            st.session_state['batch_uploader_key'] += 1
-            if 'batch_df' in st.session_state:
-                del st.session_state['batch_df']
-            if 'batch_results' in st.session_state:
-                del st.session_state['batch_results']
-            st.rerun()
-            
-        if run_batch or 'batch_df' in st.session_state:
-            if run_batch:
-                progress_bar = st.progress(0)
-                status_text = st.empty()
-                
-                batch_results = []
-                t_batch_start = time.time()
-                
-                for i, f in enumerate(uploaded_files):
-                    file_bytes = np.asarray(bytearray(f.read()), dtype=np.uint8)
-                    bgr = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
-                    
-                    # Execute verified modules (Herman & Siew Feng) + scaffolds
-                    pred_m, conf_m, _, met_m, _ = analyze_ripeness_by_morphology(bgr)
-                    pred_c, conf_c, _, _, _ = analyze_ripeness_by_color(bgr)
-                    pred_t, conf_t, _, _, _ = analyze_ripeness_by_texture(bgr)
-                    pred_g, conf_g, _, _, _ = analyze_ripeness_by_geometry(bgr)
-                    
-                    votes = [pred_m, pred_c, pred_t, pred_g]
-                    consensus = max(set(votes), key=votes.count)
-                    
-                    batch_results.append({
-                        'filename': f.name,
-                        'morph_pred': pred_m,
-                        'morph_conf': conf_m,
-                        'color_pred': pred_c,
-                        'color_conf': conf_c,
-                        'texture_pred': pred_t,
-                        'texture_conf': conf_t,
-                        'geom_pred': pred_g,
-                        'geom_conf': conf_g,
-                        'final_pred': consensus,
-                        'blemish_ratio': met_m.get('blemish_area_ratio', 0)
-                    })
-                    
-                    progress_bar.progress((i + 1) / len(uploaded_files))
-                    status_text.text(f"Evaluated image {i+1} of {len(uploaded_files)}: {f.name}")
-                    
-                elapsed_batch = time.time() - t_batch_start
-                avg_lat = (elapsed_batch / len(uploaded_files)) * 1000.0
-                
-                status_text.success(f"Ingested {len(uploaded_files)} images in {elapsed_batch:.2f}s ({avg_lat:.1f} ms/image).")
-                
-                st.session_state['batch_df'] = pd.DataFrame(batch_results)
-                st.session_state['batch_results'] = batch_results
-                
-            if 'batch_df' in st.session_state:
-                df_batch = st.session_state['batch_df']
-                batch_results = st.session_state['batch_results']
-                
-                # Summary Metrics Row
-                counts = df_batch['final_pred'].value_counts()
-                c_unripe = counts.get('unripe', 0)
-                c_ripe = counts.get('fully_ripe', 0)
-                c_overripe = counts.get('overripe', 0)
-                
-                m1, m2, m3, m4 = st.columns(4)
-                m1.markdown(f"<div class='glass-card'><div class='metric-label'>Total Ingested</div><div class='metric-val'>{len(df_batch)}</div></div>", unsafe_allow_html=True)
-                m2.markdown(f"<div class='glass-card'><div class='metric-label'>Unripe (Stage 0)</div><div class='metric-val' style='color:#16a34a;'>{c_unripe}</div></div>", unsafe_allow_html=True)
-                m3.markdown(f"<div class='glass-card'><div class='metric-label'>Fully Ripe (Stage 3)</div><div class='metric-val' style='color:#d97706;'>{c_ripe}</div></div>", unsafe_allow_html=True)
-                m4.markdown(f"<div class='glass-card'><div class='metric-label'>Overripe (Defective)</div><div class='metric-val' style='color:#dc2626;'>{c_overripe}</div></div>", unsafe_allow_html=True)
-                
-                # Batch Distribution Chart
-                fig, ax = plt.subplots(figsize=(8, 3.5), facecolor='none')
-                ax.set_facecolor('none')
-                sns.countplot(data=df_batch, x='final_pred', order=['unripe', 'fully_ripe', 'overripe'], palette=['#16a34a', '#f59e0b', '#dc2626'], ax=ax)
-                ax.set_title("Batch Maturity Distribution", fontsize=11, fontweight='bold')
-                ax.spines['top'].set_visible(False)
-                ax.spines['right'].set_visible(False)
-                st.pyplot(fig)
-                
-                # Data Table
-                st.markdown(f"<div class='section-header'>{SVG_ICONS['table']} Batch Assessment Records</div>", unsafe_allow_html=True)
-                st.dataframe(df_batch[['filename', 'morph_pred', 'color_pred', 'texture_pred', 'geom_pred', 'final_pred', 'blemish_ratio']], use_container_width=True, hide_index=True)
-                
-                # Batch PDF Download
-                dominant = df_batch['final_pred'].mode()[0] if not df_batch.empty else 'N/A'
-                summary_stats = {
-                    'total': len(df_batch),
-                    'unripe': c_unripe,
-                    'fully_ripe': c_ripe,
-                    'overripe': c_overripe,
-                    'dominant': dominant
-                }
-                batch_pdf = generate_pdf_report(batch_results, summary_stats)
-                with open(batch_pdf, "rb") as f:
+                    pdf_bytes = generate_pdf_report(rep_results, summary_stats)
                     st.download_button(
-                        label="Download Complete Batch Inspection PDF Report",
-                        data=f.read(),
-                        file_name="Batch_Inspection_Report.pdf",
+                        label="Download PDF Inspection Report",
+                        data=pdf_bytes,
+                        file_name=f"Mango_Ripeness_Report_{int(time.time())}.pdf",
                         mime="application/pdf",
                         use_container_width=True
                     )
+            with rep_col2:
+                st.info("Quality inspection report includes detailed algorithmic outputs, confidence scores, and individual defect metrics.")
 
 # -----------------------------------------------------------------------------
-# PAGE 3: SYSTEM ANALYTICS & MODE A BENCHMARKS
+# PAGE 2: BULK BATCH ASSESSMENT (CONVEYOR STREAM)
+# -----------------------------------------------------------------------------
+elif selected_page.startswith("Bulk"):
+    st.markdown(f"<div class='main-title'>{SVG_ICONS['conveyor']} Bulk Batch Assessment</div>", unsafe_allow_html=True)
+    st.markdown("<div class='sub-title'>Simulate a conveyor belt inspection stream across an entire directory of mangoes.</div>", unsafe_allow_html=True)
+    
+    batch_dir = st.selectbox("Select Assessment Split / Batch:", [
+        "cleaned_data/test/fully_ripe",
+        "cleaned_data/test/unripe",
+        "cleaned_data/test/overripe",
+        "cleaned_data/test"
+    ])
+    
+    image_paths = sorted(glob.glob(f"{batch_dir}/**/*.jpg", recursive=True) + glob.glob(f"{batch_dir}/**/*.png", recursive=True))
+    
+    st.markdown(f"<b>Found {len(image_paths)} images</b> in selected stream.", unsafe_allow_html=True)
+    
+    if st.button("Start Batch Conveyor Inspection", type="primary"):
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        
+        batch_results = []
+        start_time = time.time()
+        
+        for i, img_path in enumerate(image_paths):
+            bgr = cv2.imread(img_path)
+            if bgr is None:
+                continue
+            bgr = preprocess_image(bgr)
+            
+            pred_m, conf_m, _, met_m, _ = analyze_ripeness_by_morphology(bgr)
+            pred_c, conf_c, _, met_c, _ = analyze_ripeness_by_color(bgr)
+            pred_t, conf_t, _, _, _ = analyze_ripeness_by_texture(bgr)
+            pred_g, conf_g, _, _, _ = analyze_ripeness_by_geometry(bgr)
+            
+            all_preds = [pred_m, pred_c, pred_t, pred_g]
+            final_pred = max(set(all_preds), key=all_preds.count)
+            
+            batch_results.append({
+                'filename': os.path.basename(img_path),
+                'morph_pred': pred_m,
+                'morph_conf': conf_m,
+                'color_pred': pred_c,
+                'color_conf': conf_c,
+                'texture_pred': pred_t,
+                'texture_conf': conf_t,
+                'geom_pred': pred_g,
+                'geom_conf': conf_g,
+                'final_pred': final_pred,
+                'blemish_ratio': f"{met_m.get('blemish_area_ratio', 0):.1f}%",
+                'true_class': os.path.basename(os.path.dirname(img_path))
+            })
+            progress_bar.progress((i + 1) / len(image_paths))
+            status_text.text(f"Inspecting item {i+1} / {len(image_paths)}...")
+            
+        elapsed = time.time() - start_time
+        status_text.success(f"Batch completed in {elapsed:.2f}s ({elapsed/len(image_paths)*1000:.1f} ms/item)")
+        
+        df_batch = pd.DataFrame(batch_results)
+        
+        # Summary KPI Cards
+        kpi1, kpi2, kpi3, kpi4 = st.columns(4)
+        kpi1.metric("Total Inspected", len(df_batch))
+        kpi2.metric("Ripe (Pass)", (df_batch['final_pred'] == 'fully_ripe').sum())
+        kpi3.metric("Unripe (Hold)", (df_batch['final_pred'] == 'unripe').sum())
+        kpi4.metric("Overripe (Reject)", (df_batch['final_pred'] == 'overripe').sum())
+        
+        st.dataframe(df_batch[['filename', 'morph_pred', 'color_pred', 'texture_pred', 'geom_pred', 'final_pred', 'blemish_ratio']], use_container_width=True, hide_index=True)
+
+# -----------------------------------------------------------------------------
+# PAGE 3: SYSTEM ANALYTICS & COMPARATIVE BENCHMARK
 # -----------------------------------------------------------------------------
 elif selected_page.startswith("System"):
     st.markdown(f"<div class='main-title'>{SVG_ICONS['analytics']} System Analytics & Comparative Benchmark</div>", unsafe_allow_html=True)
@@ -641,11 +587,11 @@ elif selected_page.startswith("System"):
         },
         {
             'Algorithm / Module': '3. Texture & Surface Analysis (Wong Kai Bin)',
-            'Development Status': 'Pending Notebook (Scaffold)',
-            'Core Formulation': 'GLCM Contrast & Sobel Roughness (Baseline Prototype)',
-            'Test Accuracy (%)': 'Pending',
-            'Macro F1 (%)': 'Pending',
-            'Latency (ms/img)': '~24.80 ms'
+            'Development Status': 'Completed & Evaluated',
+            'Core Formulation': 'GLCM (Contrast/Correlation/Energy/Homogeneity) + Uniform LBP (Mean/Var/Entropy) + KNN Classifier',
+            'Test Accuracy (%)': '96.53%',
+            'Macro F1 (%)': '96.52%',
+            'Latency (ms/img)': '18.30 ms'
         },
         {
             'Algorithm / Module': '4. Edge & Shape Deformity (Yeow Wei Kang)',
@@ -679,13 +625,14 @@ elif selected_page.startswith("System"):
     
     verified_df = pd.DataFrame([
         {'Module': 'Morphology (Herman)', 'Test Accuracy (%)': morph_bm.get('accuracy', 93.06), 'Latency (ms)': morph_bm.get('latency_ms', 29.26)},
-        {'Module': f'Color-Space (Best: {best_cs})', 'Test Accuracy (%)': best_cs_acc, 'Latency (ms)': color_bm_active.get('latency_ms', 12.45)}
+        {'Module': f'Color-Space ({best_cs})', 'Test Accuracy (%)': best_cs_acc, 'Latency (ms)': color_bm_active.get('latency_ms', 12.45)},
+        {'Module': 'Texture (Kai Bin)', 'Test Accuracy (%)': texture_acc, 'Latency (ms)': texture_lat}
     ])
     
     with c1:
         fig, ax = plt.subplots(figsize=(6, 3.5), facecolor='none')
         ax.set_facecolor('none')
-        sns.barplot(data=verified_df, x='Module', y='Test Accuracy (%)', palette=['#3b82f6', '#f59e0b'], ax=ax)
+        sns.barplot(data=verified_df, x='Module', y='Test Accuracy (%)', palette=['#3b82f6', '#f59e0b', '#10b981'], ax=ax)
         ax.set_title("Test Accuracy Comparison (Verified Modules)", fontsize=10, fontweight='bold')
         ax.set_ylim(70, 105)
         ax.axhline(85, color='#ef4444', linestyle='--', label='Target Accuracy (85%)')
@@ -697,7 +644,7 @@ elif selected_page.startswith("System"):
     with c2:
         fig, ax = plt.subplots(figsize=(6, 3.5), facecolor='none')
         ax.set_facecolor('none')
-        sns.barplot(data=verified_df, x='Module', y='Latency (ms)', palette=['#10b981', '#6366f1'], ax=ax)
+        sns.barplot(data=verified_df, x='Module', y='Latency (ms)', palette=['#3b82f6', '#f59e0b', '#10b981'], ax=ax)
         ax.set_title("Processing Latency per Image (ms)", fontsize=10, fontweight='bold')
         ax.axhline(200, color='#ef4444', linestyle='--', label='Max Target Latency (200 ms)')
         ax.legend(facecolor='none', edgecolor='none')
@@ -710,19 +657,19 @@ elif selected_page.startswith("System"):
         {
             'SMART Objective': 'Objective 1: Multi-Algorithm Suite',
             'Target Criterion': 'Implement 4 distinct classical computer vision algorithms',
-            'Current Measured Status': '2 Completed (Herman & Siew Feng) + 2 Scaffolds (Kai Bin & Wei Kang)',
-            'Fulfillment': 'In Progress (50% Finalized)'
+            'Current Measured Status': '3 Completed (Herman, Siew Feng & Kai Bin) + 1 Scaffold (Wei Kang)',
+            'Fulfillment': 'In Progress (75% Finalized)'
         },
         {
             'SMART Objective': 'Objective 2: Classification Accuracy',
             'Target Criterion': 'Achieve minimum >= 85% classification accuracy',
-            'Current Measured Status': f"{morph_acc_str} (Herman Morphology) | {best_cs_acc:.2f}% (Siew Feng Color - Best: {best_cs})",
+            'Current Measured Status': f"{morph_acc_str} (Herman Morphology) | {best_cs_acc:.2f}% (Siew Feng Color - Best: {best_cs}) | {texture_acc:.2f}% (Kai Bin Texture)",
             'Fulfillment': 'Target Exceeded'
         },
         {
             'SMART Objective': 'Objective 3: Operational Latency',
             'Target Criterion': 'Execute with per-image latency < 200 ms',
-            'Current Measured Status': f"{morph_lat_str} (Herman) | {color_lat_str} (Siew Feng)",
+            'Current Measured Status': f"{morph_lat_str} (Herman) | {color_lat_str} (Siew Feng) | {texture_lat:.2f} ms (Kai Bin)",
             'Fulfillment': 'Target Exceeded'
         }
     ]
