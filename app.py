@@ -588,10 +588,10 @@ elif selected_page.startswith("System"):
         {
             'Algorithm / Module': '3. Texture & Surface Analysis (Wong Kai Bin)',
             'Development Status': 'Completed & Evaluated',
-            'Core Formulation': 'GLCM (Contrast/Correlation/Energy/Homogeneity) + Uniform LBP (Mean/Var/Entropy) + KNN Classifier',
-            'Test Accuracy (%)': '96.53%',
-            'Macro F1 (%)': '96.52%',
-            'Latency (ms/img)': '18.30 ms'
+            'Core Formulation': 'Enhanced Multi-Descriptor Fusion: Rotation-Invariant GLCM (4 angles) + Uniform LBP + Sobel Roughness',
+            'Test Accuracy (%)': f"{texture_acc:.2f}%",
+            'Macro F1 (%)': f"{texture_f1:.2f}%",
+            'Latency (ms/img)': f"{texture_lat:.2f} ms"
         },
         {
             'Algorithm / Module': '4. Edge & Shape Deformity (Yeow Wei Kang)',

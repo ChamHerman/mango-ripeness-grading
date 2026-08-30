@@ -12,7 +12,7 @@ from skimage.feature import graycomatrix, graycoprops, local_binary_pattern
 _CACHED_MODEL_PKG = None
 DEFAULT_MODEL_PATH = "output/texture_based/texture_model.joblib"
 
-# Hyperparameters matching notebook
+# Hyperparameters matching Mode A notebook
 GLCM_DISTANCES = [1]
 GLCM_ANGLES = [0, np.pi / 4, np.pi / 2, 3 * np.pi / 4]
 LBP_P = 8
@@ -95,9 +95,24 @@ def extract_lbp_features(gray: np.ndarray, mask: np.ndarray, P: int = LBP_P, R: 
     return feats, lbp
 
 
+def extract_spatial_roughness(gray: np.ndarray, mask: np.ndarray) -> tuple:
+    """Compute Sobel spatial gradient surface roughness."""
+    denoised = cv2.medianBlur(gray, 3)
+    sobel_x = cv2.Sobel(denoised, cv2.CV_64F, 1, 0, ksize=3)
+    sobel_y = cv2.Sobel(denoised, cv2.CV_64F, 0, 1, ksize=3)
+    sobel = np.sqrt(sobel_x**2 + sobel_y**2)
+    sobel = np.uint8(np.clip(sobel, 0, 255))
+    sobel = cv2.bitwise_and(sobel, sobel, mask=mask)
+    
+    fruit_grad = sobel[mask > 0]
+    roughness = float(np.mean(fruit_grad)) if len(fruit_grad) > 0 else 0.0
+    return roughness, sobel
+
+
 def analyze_ripeness_by_texture(image: np.ndarray, model_path: str = DEFAULT_MODEL_PATH):
     """
-    Wong Kai Bin's Texture & Surface Feature Analysis (GLCM + LBP) production inference module.
+    Wong Kai Bin's Enhanced Multi-Descriptor Texture Analysis production inference module.
+    Combines Rotation-Invariant GLCM + Uniform LBP + Sobel Surface Roughness.
     
     Parameters:
         image (np.ndarray): Input BGR mango image.
@@ -124,10 +139,16 @@ def analyze_ripeness_by_texture(image: np.ndarray, model_path: str = DEFAULT_MOD
     mask = get_fruit_mask(image)
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
-    # 3. Extract GLCM & LBP Texture Features
+    # 3. Extract 8-D Enhanced Texture Features
     glcm_feats = extract_glcm_features(gray, mask)
     lbp_feats, lbp_map = extract_lbp_features(gray, mask)
-    combined_feats = {**glcm_feats, **lbp_feats}
+    roughness, sobel_map = extract_spatial_roughness(gray, mask)
+    
+    combined_feats = {
+        **glcm_feats,
+        **lbp_feats,
+        'surface_roughness': roughness
+    }
 
     # 4. Standard Scaling & ML Inference
     feat_df = pd.DataFrame([combined_feats])[feature_cols]
@@ -150,22 +171,13 @@ def analyze_ripeness_by_texture(image: np.ndarray, model_path: str = DEFAULT_MOD
     latency_ms = (time.time() - t_start) * 1000.0
 
     # 5. Visualizations & Step Images
-    # Sobel spatial gradient for texture roughness heatmap
-    denoised = cv2.medianBlur(gray, 3)
-    sobel_x = cv2.Sobel(denoised, cv2.CV_64F, 1, 0, ksize=3)
-    sobel_y = cv2.Sobel(denoised, cv2.CV_64F, 0, 1, ksize=3)
-    sobel = np.sqrt(sobel_x**2 + sobel_y**2)
-    sobel = np.uint8(np.clip(sobel, 0, 255))
-    sobel = cv2.bitwise_and(sobel, sobel, mask=mask)
-
-    heatmap = cv2.applyColorMap(sobel, cv2.COLORMAP_JET)
+    heatmap = cv2.applyColorMap(sobel_map, cv2.COLORMAP_JET)
     heatmap = cv2.bitwise_and(heatmap, heatmap, mask=mask)
     heatmap_rgb = cv2.cvtColor(heatmap, cv2.COLOR_BGR2RGB)
 
     img_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     blended = cv2.addWeighted(img_rgb, 0.65, heatmap_rgb, 0.35, 0)
 
-    # LBP Colormap visualization
     norm_lbp = np.uint8(np.clip(lbp_map / (LBP_P + 2) * 255.0, 0, 255))
     norm_lbp = cv2.bitwise_and(norm_lbp, norm_lbp, mask=mask)
     lbp_colored = cv2.applyColorMap(norm_lbp, cv2.COLORMAP_MAGMA)
@@ -180,8 +192,9 @@ def analyze_ripeness_by_texture(image: np.ndarray, model_path: str = DEFAULT_MOD
         'lbp_mean': round(combined_feats['lbp_mean'], 2),
         'lbp_variance': round(combined_feats['lbp_variance'], 2),
         'lbp_entropy': round(combined_feats['lbp_entropy'], 2),
-        'classifier': pkg.get('classifier', 'KNN'),
-        'test_accuracy': pkg.get('test_accuracy', 96.53),
+        'surface_roughness': round(roughness, 2),
+        'classifier': pkg.get('classifier', 'KNN (k=5)'),
+        'test_accuracy': pkg.get('test_accuracy', 92.36),
         'latency_ms': round(latency_ms, 2),
         'features': combined_feats
     }

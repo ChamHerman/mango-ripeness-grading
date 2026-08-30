@@ -1,6 +1,20 @@
+# Python cache and bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+/src/__pycache__
+
+# Planning documents and scratch files (Do not upload to master PR)
+*plan*.md
+notebooks/*plan*.md
+.zcode/
+scratch/
+*.log
+
+# System and IDE configuration
 /.reasonix
 reasonix.toml
 /docs
 CONTEXT.md
-/src/__pycache__
-/__pycache__
+.DS_Store
+Thumbs.db

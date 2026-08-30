@@ -26,8 +26,8 @@ DEFAULT_BENCHMARK = {
         'latency_ms': 29.26
     },
     'texture': {
-        'accuracy': 96.53,
-        'f1': 96.52,
+        'accuracy': 92.36,
+        'f1': 92.34,
         'latency_ms': 18.30
     }
 }
