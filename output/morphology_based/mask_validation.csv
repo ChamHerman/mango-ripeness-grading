@@ -1,0 +1,5 @@
+Class,Paired Images,IoU Mean (%),IoU Std (%),IoU < 80% (count),Over-filled Reference (count)
+unripe,238,94.25,3.47,1,1
+fully_ripe,237,95.34,1.47,0,0
+overripe,240,90.21,12.35,50,32
+TOTAL,715,93.26,7.8,51,33

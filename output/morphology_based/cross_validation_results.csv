@@ -1,0 +1,6 @@
+Algorithm,CV Accuracy Mean (%),CV Std (%)
+Alg 1: Open-Close,89.5,2.03
+Alg 2: Dual Top-Hat,78.29,4.13
+Alg 3: Morph Gradient,88.8,2.42
+Alg 4: MC Watershed,73.74,2.69
+MRMF (Feature Fusion),94.23,1.87
