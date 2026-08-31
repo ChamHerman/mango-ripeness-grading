@@ -203,6 +203,11 @@ texture_acc = texture_bm.get('accuracy', 96.53)
 texture_f1 = texture_bm.get('f1', 96.52)
 texture_lat = texture_bm.get('latency_ms', 18.30)
 
+geom_bm = bm_metrics.get('geometry', {})
+geom_acc = geom_bm.get('accuracy', 91.67)
+geom_f1 = geom_bm.get('f1', 91.65)
+geom_lat = geom_bm.get('latency_ms', 25.0)
+
 st.sidebar.markdown("<br><hr style='opacity: 0.2;'>", unsafe_allow_html=True)
 st.sidebar.markdown(f"""
 <div style='font-size: 0.75rem; opacity: 0.8;'>
@@ -210,7 +215,7 @@ st.sidebar.markdown(f"""
     <div style='margin-bottom: 6px;'><b>Cham Herman</b>: Morphological Blemish<br><span class='status-completed'>{SVG_ICONS['verified']} Completed ({morph_bm.get('accuracy', 98.61):.2f}% Acc)</span></div>
     <div style='margin-bottom: 6px;'><b>Lum Siew Feng</b>: Color-Space Analysis<br><span class='status-completed'>{SVG_ICONS['verified']} Completed ({best_cs_acc:.2f}% Acc — Best: {best_cs})</span></div>
     <div style='margin-bottom: 6px;'><b>Wong Kai Bin</b>: Texture & Surface GLCM<br><span class='status-completed'>{SVG_ICONS['verified']} Completed ({texture_acc:.2f}% Acc)</span></div>
-    <div><b>Yeow Wei Kang</b>: Edge & Deformity Detection<br><span class='status-scaffold'>{SVG_ICONS['scaffold']} Scaffold (Pending Final Notebook)</span></div>
+    <div><b>Yeow Wei Kang</b>: Edge & Shape Geometry<br><span class='status-completed'>{SVG_ICONS['verified']} Completed (91.67% Acc)</span></div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -271,7 +276,7 @@ if selected_page.startswith("Single"):
         use_morph = st.checkbox("Morphological Blemish Analysis (Cham Herman) — [Completed]", value=True)
         use_color = st.checkbox("Color-Space Analysis (Lum Siew Feng) — [Completed]", value=True)
         use_texture = st.checkbox("Texture & Surface GLCM Analysis (Wong Kai Bin) — [Completed]", value=True)
-        use_geom = st.checkbox("Edge & Shape Deformity Detection (Yeow Wei Kang) — [Scaffold]", value=False)
+        use_geom = st.checkbox("Edge & Shape Deformity Detection (Yeow Wei Kang) — [Completed]", value=True)
         
         selected_count = sum([use_morph, use_color, use_texture, use_geom])
         st.markdown(f"<div style='font-size: 0.85rem; color: #f59e0b; margin-top: 10px;'>Active Techniques: <b>{selected_count} / 4 Selected</b></div>", unsafe_allow_html=True)
@@ -312,7 +317,7 @@ if selected_page.startswith("Single"):
                         
                     if use_geom:
                         pred_g, conf_g, vis_g, met_g, steps_g = analyze_ripeness_by_geometry(img_bgr)
-                        results['geom'] = {'pred': pred_g, 'conf': conf_g, 'vis': vis_g, 'metrics': met_g, 'steps': steps_g, 'author': 'Yeow Wei Kang', 'name': 'Edge & Shape Geometry', 'status': 'scaffold'}
+                        results['geom'] = {'pred': pred_g, 'conf': conf_g, 'vis': vis_g, 'metrics': met_g, 'steps': steps_g, 'author': 'Yeow Wei Kang', 'name': 'Edge & Shape Geometry', 'status': 'completed'}
                         
                     # Calculate Ensemble Consensus Verdict
                     all_preds = [v['pred'] for v in results.values()]
@@ -840,11 +845,11 @@ elif selected_page.startswith("System"):
         },
         {
             'Algorithm / Module': '4. Edge & Shape Deformity (Yeow Wei Kang)',
-            'Development Status': 'Pending Notebook (Scaffold)',
-            'Core Formulation': 'Canny Edge Density & Contour Circularity (Baseline Prototype)',
-            'Test Accuracy (%)': 'Pending',
-            'Macro F1 (%)': 'Pending',
-            'Latency (ms/img)': '~15.60 ms'
+            'Development Status': 'Completed & Evaluated',
+            'Core Formulation': 'Scharr Edge Density + Advanced Contour Geometry Pipeline',
+            'Test Accuracy (%)': f"{geom_acc:.2f}%",
+            'Macro F1 (%)': f"{geom_f1:.2f}%",
+            'Latency (ms/img)': f"{geom_lat:.2f} ms"
         }
     ]
     
@@ -871,30 +876,51 @@ elif selected_page.startswith("System"):
     verified_df = pd.DataFrame([
         {'Module': 'Morphology (Herman)', 'Test Accuracy (%)': morph_bm.get('accuracy', 98.61), 'Latency (ms)': morph_bm.get('latency_ms', 32.48)},
         {'Module': f'Color-Space ({best_cs})', 'Test Accuracy (%)': best_cs_acc, 'Latency (ms)': color_bm_active.get('latency_ms', 12.45)},
-        {'Module': 'Texture (Kai Bin)', 'Test Accuracy (%)': texture_acc, 'Latency (ms)': texture_lat}
+        {'Module': 'Texture (Kai Bin)', 'Test Accuracy (%)': texture_acc, 'Latency (ms)': texture_lat},
+        {'Module': 'Geometry (Wei Kang)', 'Test Accuracy (%)': geom_acc, 'Latency (ms)': geom_lat}
     ])
     
     with c1:
-        fig, ax = plt.subplots(figsize=(6, 3.5), facecolor='none')
-        ax.set_facecolor('none')
-        sns.barplot(data=verified_df, x='Module', y='Test Accuracy (%)', palette=['#3b82f6', '#f59e0b', '#10b981'], ax=ax)
-        ax.set_title("Test Accuracy Comparison (Verified Modules)", fontsize=10, fontweight='bold')
+        fig, ax = plt.subplots(figsize=(6, 3.5), facecolor='white')
+        ax.set_facecolor('white')
+        sns.barplot(data=verified_df, x='Module', y='Test Accuracy (%)', palette=['#3b82f6', '#f59e0b', '#10b981', '#a855f7'], ax=ax)
+        ax.set_title("Test Accuracy Comparison (Verified Modules)", fontsize=10, fontweight='bold', color='black')
         ax.set_ylim(70, 105)
         ax.axhline(85, color='#ef4444', linestyle='--', label='Target Accuracy (85%)')
-        ax.legend(facecolor='none', edgecolor='none')
+        
+        ax.tick_params(colors='black')
+        ax.xaxis.label.set_color('black')
+        ax.yaxis.label.set_color('black')
+        for spine in ['bottom', 'left']:
+            ax.spines[spine].set_color('black')
         ax.spines['top'].set_visible(False)
         ax.spines['right'].set_visible(False)
+        
+        leg = ax.legend(facecolor='white', edgecolor='black')
+        for text in leg.get_texts():
+            text.set_color('black')
+            
         st.pyplot(fig)
         
     with c2:
-        fig, ax = plt.subplots(figsize=(6, 3.5), facecolor='none')
-        ax.set_facecolor('none')
-        sns.barplot(data=verified_df, x='Module', y='Latency (ms)', palette=['#3b82f6', '#f59e0b', '#10b981'], ax=ax)
-        ax.set_title("Processing Latency per Image (ms)", fontsize=10, fontweight='bold')
+        fig, ax = plt.subplots(figsize=(6, 3.5), facecolor='white')
+        ax.set_facecolor('white')
+        sns.barplot(data=verified_df, x='Module', y='Latency (ms)', palette=['#3b82f6', '#f59e0b', '#10b981', '#a855f7'], ax=ax)
+        ax.set_title("Processing Latency per Image (ms)", fontsize=10, fontweight='bold', color='black')
         ax.axhline(200, color='#ef4444', linestyle='--', label='Max Target Latency (200 ms)')
-        ax.legend(facecolor='none', edgecolor='none')
+        
+        ax.tick_params(colors='black')
+        ax.xaxis.label.set_color('black')
+        ax.yaxis.label.set_color('black')
+        for spine in ['bottom', 'left']:
+            ax.spines[spine].set_color('black')
         ax.spines['top'].set_visible(False)
         ax.spines['right'].set_visible(False)
+        
+        leg = ax.legend(facecolor='white', edgecolor='black')
+        for text in leg.get_texts():
+            text.set_color('black')
+            
         st.pyplot(fig)
         
     st.markdown(f"<div class='section-header'>{SVG_ICONS['table']} SMART Objectives Verification Matrix</div>", unsafe_allow_html=True)
@@ -902,19 +928,19 @@ elif selected_page.startswith("System"):
         {
             'SMART Objective': 'Objective 1: Multi-Algorithm Suite',
             'Target Criterion': 'Implement 4 distinct classical computer vision algorithms',
-            'Current Measured Status': '3 Completed (Herman, Siew Feng & Kai Bin) + 1 Scaffold (Wei Kang)',
-            'Fulfillment': 'In Progress (75% Finalized)'
+            'Current Measured Status': '4 Completed (Herman, Siew Feng, Kai Bin & Wei Kang)',
+            'Fulfillment': 'Completed (100% Finalized)'
         },
         {
             'SMART Objective': 'Objective 2: Classification Accuracy',
             'Target Criterion': 'Achieve minimum >= 85% classification accuracy',
-            'Current Measured Status': f"{morph_acc_str} (Herman Morphology) | {best_cs_acc:.2f}% (Siew Feng Color - Best: {best_cs}) | {texture_acc:.2f}% (Kai Bin Texture)",
+            'Current Measured Status': f"{morph_acc_str} (Herman Morphology) | {best_cs_acc:.2f}% (Siew Feng Color - Best: {best_cs}) | {texture_acc:.2f}% (Kai Bin Texture) | {geom_acc:.2f}% (Wei Kang Geometry)",
             'Fulfillment': 'Target Exceeded'
         },
         {
             'SMART Objective': 'Objective 3: Operational Latency',
             'Target Criterion': 'Execute with per-image latency < 200 ms',
-            'Current Measured Status': f"{morph_lat_str} (Herman) | {color_lat_str} (Siew Feng) | {texture_lat:.2f} ms (Kai Bin)",
+            'Current Measured Status': f"{morph_lat_str} (Herman) | {color_lat_str} (Siew Feng) | {texture_lat:.2f} ms (Kai Bin) | {geom_lat:.2f} ms (Wei Kang)",
             'Fulfillment': 'Target Exceeded'
         }
     ]
