@@ -731,7 +731,7 @@ elif selected_page.startswith("Bulk"):
 # -----------------------------------------------------------------------------
 # PAGE 3: LIVE CAMERA INSPECTION (REAL-TIME STREAM, EXTRA EFFORT)
 # -----------------------------------------------------------------------------
-elif selected_page.startswith("Video"):
+elif selected_page.startswith("Live"):
     from src.video import analyze_frame, make_webrtc_callback, LiveSessionStats
     st.markdown(f"<div class='main-title'>{SVG_ICONS['diagnostic']} Live Camera Inspection (Real-Time Stream)</div>", unsafe_allow_html=True)
     st.markdown("<div class='sub-title'>Continuous webcam ingestion with real-time per-frame analysis: background-agnostic morphological segmentation followed by the MRMF pipeline on every frame.</div>", unsafe_allow_html=True)

@@ -19,3 +19,4 @@ CONTEXT.md
 .DS_Store
 Thumbs.db
 /.scratch
+/.playwright-mcp
