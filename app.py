@@ -10,7 +10,7 @@ import seaborn as sns
 from PIL import Image
 
 # Import modular image processing engines
-from src.preprocessing import preprocess_image
+from src.preprocessing import preprocess_image, preprocess_image_with_stages
 from src.morphology import analyze_ripeness_by_morphology
 from src.color_space import analyze_ripeness_by_color, get_color_space_pipeline_steps, COLOR_SPACES
 from src.texture import analyze_ripeness_by_texture
@@ -188,6 +188,7 @@ selected_page = st.sidebar.radio(
     "Navigation:",
     ["Single Image Diagnostic Playground",
      "Bulk Batch Assessment (Conveyor Stream)",
+     "Live Camera Inspection (Real-Time Stream)",
      "System Analytics & Comparative Benchmark"]
 )
 
@@ -206,7 +207,7 @@ st.sidebar.markdown("<br><hr style='opacity: 0.2;'>", unsafe_allow_html=True)
 st.sidebar.markdown(f"""
 <div style='font-size: 0.75rem; opacity: 0.8;'>
     <b>Team Module Status:</b><br><br>
-    <div style='margin-bottom: 6px;'><b>Cham Herman</b>: Morphological Blemish<br><span class='status-completed'>{SVG_ICONS['verified']} Completed ({morph_bm.get('accuracy', 93.06):.2f}% Acc)</span></div>
+    <div style='margin-bottom: 6px;'><b>Cham Herman</b>: Morphological Blemish<br><span class='status-completed'>{SVG_ICONS['verified']} Completed ({morph_bm.get('accuracy', 98.61):.2f}% Acc)</span></div>
     <div style='margin-bottom: 6px;'><b>Lum Siew Feng</b>: Color-Space Analysis<br><span class='status-completed'>{SVG_ICONS['verified']} Completed ({best_cs_acc:.2f}% Acc — Best: {best_cs})</span></div>
     <div style='margin-bottom: 6px;'><b>Wong Kai Bin</b>: Texture & Surface GLCM<br><span class='status-completed'>{SVG_ICONS['verified']} Completed ({texture_acc:.2f}% Acc)</span></div>
     <div><b>Yeow Wei Kang</b>: Edge & Deformity Detection<br><span class='status-scaffold'>{SVG_ICONS['scaffold']} Scaffold (Pending Final Notebook)</span></div>
@@ -287,9 +288,18 @@ if selected_page.startswith("Single"):
             else:
                 with st.spinner("Processing selected computer vision pipelines..."):
                     results = {}
-                    img_bgr = preprocess_image(img_bgr)
+                    prep_stages = None
+                    if use_morph:
+                        # Staged preprocessing so the UI can show exactly what
+                        # happened before the analyzers run (single k-means call
+                        # keeps the processed image identical for all modules).
+                        img_bgr, prep_stages = preprocess_image_with_stages(img_bgr)
+                    else:
+                        img_bgr = preprocess_image(img_bgr)
                     if use_morph:
                         pred_m, conf_m, vis_m, met_m, steps_m = analyze_ripeness_by_morphology(img_bgr)
+                        if prep_stages:
+                            steps_m = {**prep_stages, **steps_m}
                         results['morph'] = {'pred': pred_m, 'conf': conf_m, 'vis': vis_m, 'metrics': met_m, 'steps': steps_m, 'author': 'Cham Herman', 'name': 'Morphological Blemish', 'status': 'completed'}
                         
                     if use_color:
@@ -427,7 +437,12 @@ if selected_page.startswith("Single"):
                     'Latency (ms)': f"{item['metrics'].get('latency_ms', 0):.1f} ms"
                 }
                 if k == 'morph':
-                    row['Primary Physical Metric'] = f"Blemish Area: {item['metrics'].get('blemish_area_ratio', 0):.2f}% (Count: {item['metrics'].get('n_blemishes', 0)})"
+                    review_flag = ' | Needs Review' if item['metrics'].get('needs_review') else ''
+                    row['Primary Physical Metric'] = (
+                        f"Defect: {item['metrics'].get('blemish_area_ratio', 0):.2f}% "
+                        f"[{item['metrics'].get('severity_grade', '-')}], "
+                        f"Lesions (split): {item['metrics'].get('n_lesions_split', 0)}{review_flag}"
+                    )
                 elif k == 'color':
                     all_p = item['metrics'].get('predictions_per_color_space', {})
                     preds_str = ", ".join([f"{cs}:{p}" for cs, p in all_p.items()]) if all_p else ""
@@ -478,77 +493,307 @@ if selected_page.startswith("Single"):
                 st.info("Quality inspection report includes detailed algorithmic outputs, confidence scores, and individual defect metrics.")
 
 # -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 # PAGE 2: BULK BATCH ASSESSMENT (CONVEYOR STREAM)
 # -----------------------------------------------------------------------------
 elif selected_page.startswith("Bulk"):
     st.markdown(f"<div class='main-title'>{SVG_ICONS['conveyor']} Bulk Batch Assessment</div>", unsafe_allow_html=True)
-    st.markdown("<div class='sub-title'>Simulate a conveyor belt inspection stream across an entire directory of mangoes.</div>", unsafe_allow_html=True)
+    st.markdown("<div class='sub-title'>High-throughput batch inspection stream for conveyor simulation with customizable algorithm selection and confidence-based decision fusion.</div>", unsafe_allow_html=True)
     
-    batch_dir = st.selectbox("Select Assessment Split / Batch:", [
-        "cleaned_data/test/fully_ripe",
-        "cleaned_data/test/unripe",
-        "cleaned_data/test/overripe",
-        "cleaned_data/test"
-    ])
+    col_batch_in, col_batch_alg = st.columns([1.1, 1.1])
     
-    image_paths = sorted(glob.glob(f"{batch_dir}/**/*.jpg", recursive=True) + glob.glob(f"{batch_dir}/**/*.png", recursive=True))
+    with col_batch_in:
+        st.markdown(f"<div class='glass-card'><div style='font-weight: 700; margin-bottom: 10px; display: flex; align-items: center; gap: 8px;'>{SVG_ICONS['upload']} 1. Ingest Image Stream</div>", unsafe_allow_html=True)
+        batch_source_mode = st.radio("Stream Ingestion Source:", ["Standard Dataset Split Directory", "Custom Multiple Image Upload"], horizontal=True)
+        
+        image_paths = []
+        custom_uploaded_files = []
+        
+        if batch_source_mode.startswith("Standard"):
+            batch_dir = st.selectbox("Select Assessment Split / Directory:", [
+                "cleaned_data/test/fully_ripe",
+                "cleaned_data/test/unripe",
+                "cleaned_data/test/overripe",
+                "cleaned_data/test",
+                "data/test"
+            ])
+            image_paths = sorted(glob.glob(f"{batch_dir}/**/*.jpg", recursive=True) + glob.glob(f"{batch_dir}/**/*.png", recursive=True))
+            st.markdown(f"<div style='font-size: 0.85rem; opacity: 0.8; margin-top: 6px;'>Found <b>{len(image_paths)} images</b> in selected stream path.</div>", unsafe_allow_html=True)
+        else:
+            if 'batch_uploader_key' not in st.session_state:
+                st.session_state['batch_uploader_key'] = 0
+                
+            custom_uploaded_files = st.file_uploader(
+                "Upload Multiple Mango Images:",
+                type=["jpg", "jpeg", "png"],
+                accept_multiple_files=True,
+                key=f"batch_uploader_{st.session_state['batch_uploader_key']}"
+            )
+            
+            c_clear1, c_clear2 = st.columns([1, 1])
+            with c_clear1:
+                st.markdown(f"<div style='font-size: 0.85rem; opacity: 0.8; margin-top: 6px;'>Uploaded <b>{len(custom_uploaded_files)} images</b>.</div>", unsafe_allow_html=True)
+            with c_clear2:
+                if st.button("Delete All Images / Clear Batch", use_container_width=True):
+                    st.session_state['batch_uploader_key'] += 1
+                    if 'last_batch_df' in st.session_state:
+                        del st.session_state['last_batch_df']
+                    st.rerun()
+                    
+        st.markdown("</div>", unsafe_allow_html=True)
+        
+    with col_batch_alg:
+        st.markdown(f"<div class='glass-card'><div style='font-weight: 700; margin-bottom: 8px; display: flex; align-items: center; gap: 8px;'>{SVG_ICONS['sliders']} 2. Batch Algorithm Selection & Strategy</div>", unsafe_allow_html=True)
+        st.markdown("<div style='font-size: 0.8rem; opacity: 0.7; margin-bottom: 10px;'>Select one or more high-accuracy algorithms to execute on the batch:</div>", unsafe_allow_html=True)
+        
+        b_use_morph = st.checkbox("Morphological Blemish Analysis (Cham Herman) — 98.61% Acc [Completed]", value=True, key="b_morph")
+        b_use_color = st.checkbox("Color-Space Thresholding (Lum Siew Feng) — 100.00% Best / 97.22% RGB [Completed]", value=True, key="b_color")
+        b_use_texture = st.checkbox("Texture & Surface GLCM (Wong Kai Bin) — 96.53% Acc [Completed]", value=False, key="b_texture")
+        b_use_geom = st.checkbox("Edge & Shape Deformity (Yeow Wei Kang) — [Scaffold]", value=False, key="b_geom")
+        
+        b_active_count = sum([b_use_morph, b_use_color, b_use_texture, b_use_geom])
+        
+        if b_active_count == 1:
+            st.info("Single Model Mode: Batch decisions will directly follow the selected high-accuracy algorithm.")
+        elif b_active_count > 1:
+            st.success(f"Highest-Confidence Selection: For each item, the prediction from the model exhibiting the highest confidence among the {b_active_count} active techniques will be chosen as the final grade.")
+        else:
+            st.warning("Please select at least 1 algorithm before starting the batch analysis.")
+            
+        st.markdown("<br>", unsafe_allow_html=True)
+        start_batch_btn = st.button("Start Batch Conveyor Inspection", type="primary", use_container_width=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+        
+    # Total available items check
+    total_batch_items = len(image_paths) if batch_source_mode.startswith("Standard") else len(custom_uploaded_files)
     
-    st.markdown(f"<b>Found {len(image_paths)} images</b> in selected stream.", unsafe_allow_html=True)
-    
-    if st.button("Start Batch Conveyor Inspection", type="primary"):
-        progress_bar = st.progress(0)
-        status_text = st.empty()
-        
-        batch_results = []
-        start_time = time.time()
-        
-        for i, img_path in enumerate(image_paths):
-            bgr = cv2.imread(img_path)
-            if bgr is None:
-                continue
-            bgr = preprocess_image(bgr)
+    if (start_batch_btn or 'last_batch_df' in st.session_state) and total_batch_items > 0:
+        if start_batch_btn:
+            if b_active_count == 0:
+                st.error("Please select at least one algorithm before running batch assessment.")
+            else:
+                progress_bar = st.progress(0)
+                status_text = st.empty()
+                batch_results = []
+                start_time = time.time()
+                
+                for i in range(total_batch_items):
+                    if batch_source_mode.startswith("Standard"):
+                        img_path = image_paths[i]
+                        bgr = cv2.imread(img_path)
+                        filename = os.path.basename(img_path)
+                        true_cls = os.path.basename(os.path.dirname(img_path))
+                    else:
+                        file_obj = custom_uploaded_files[i]
+                        file_bytes = np.asarray(bytearray(file_obj.read()), dtype=np.uint8)
+                        bgr = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
+                        filename = file_obj.name
+                        true_cls = "uploaded"
+                        
+                    if bgr is None:
+                        continue
+                    bgr = preprocess_image(bgr)
+                    
+                    item_preds = {}
+                    
+                    if b_use_morph:
+                        pm, cm, _, mm, _ = analyze_ripeness_by_morphology(bgr)
+                        item_preds['morph'] = {'pred': pm, 'conf': cm, 'name': 'Morphology (Herman)', 'metrics': mm}
+                    if b_use_color:
+                        pc, cc, _, mc, _ = analyze_ripeness_by_color(bgr)
+                        item_preds['color'] = {'pred': pc, 'conf': cc, 'name': 'Color-Space (Siew Feng)', 'metrics': mc}
+                    if b_use_texture:
+                        pt, ct, _, mt, _ = analyze_ripeness_by_texture(bgr)
+                        item_preds['texture'] = {'pred': pt, 'conf': ct, 'name': 'Texture (Kai Bin)', 'metrics': mt}
+                    if b_use_geom:
+                        pg, cg, _, mg, _ = analyze_ripeness_by_geometry(bgr)
+                        item_preds['geom'] = {'pred': pg, 'conf': cg, 'name': 'Geometry (Wei Kang)', 'metrics': mg}
+                        
+                    # Decision Logic: If 1 model -> use directly. If multiple -> choose highest confidence model!
+                    if len(item_preds) == 1:
+                        single_k = list(item_preds.keys())[0]
+                        final_pred = item_preds[single_k]['pred']
+                        final_conf = item_preds[single_k]['conf']
+                        winning_model = item_preds[single_k]['name']
+                    else:
+                        winning_k = max(item_preds.keys(), key=lambda k: item_preds[k]['conf'])
+                        final_pred = item_preds[winning_k]['pred']
+                        final_conf = item_preds[winning_k]['conf']
+                        winning_model = item_preds[winning_k]['name']
+                        
+                    blemish_ratio_str = f"{item_preds.get('morph', {}).get('metrics', {}).get('blemish_area_ratio', 0):.2f}%" if 'morph' in item_preds else "-"
+                    severity_grade_str = item_preds.get('morph', {}).get('metrics', {}).get('severity_grade', '-') if 'morph' in item_preds else "-"
+                    
+                    record = {
+                        'filename': filename,
+                        'true_class': true_cls,
+                        'final_pred': final_pred,
+                        'final_conf': round(final_conf, 1),
+                        'winning_model': winning_model,
+                        'blemish_ratio': blemish_ratio_str,
+                        'severity_grade': severity_grade_str
+                    }
+                    
+                    if 'morph' in item_preds:
+                        record['morph_pred'] = f"{item_preds['morph']['pred']} ({item_preds['morph']['conf']:.1f}%)"
+                    if 'color' in item_preds:
+                        record['color_pred'] = f"{item_preds['color']['pred']} ({item_preds['color']['conf']:.1f}%)"
+                    if 'texture' in item_preds:
+                        record['texture_pred'] = f"{item_preds['texture']['pred']} ({item_preds['texture']['conf']:.1f}%)"
+                    if 'geom' in item_preds:
+                        record['geom_pred'] = f"{item_preds['geom']['pred']} ({item_preds['geom']['conf']:.1f}%)"
+                        
+                    batch_results.append(record)
+                    progress_bar.progress((i + 1) / total_batch_items)
+                    status_text.text(f"Inspecting stream item {i+1} of {total_batch_items}: {filename} (Decided: {final_pred.upper()} by {winning_model})")
+                    
+                elapsed = time.time() - start_time
+                avg_lat_item = (elapsed / total_batch_items) * 1000.0 if total_batch_items > 0 else 0
+                status_text.success(f"Batch completed: Evaluated {len(batch_results)} items in {elapsed:.2f}s ({avg_lat_item:.1f} ms/item)")
+                
+                st.session_state['last_batch_df'] = pd.DataFrame(batch_results)
+                st.session_state['last_batch_elapsed'] = elapsed
+                st.session_state['last_batch_avg_lat'] = avg_lat_item
+                
+        # Render Batch Summary
+        if 'last_batch_df' in st.session_state:
+            df_batch = st.session_state['last_batch_df']
             
-            pred_m, conf_m, _, met_m, _ = analyze_ripeness_by_morphology(bgr)
-            pred_c, conf_c, _, met_c, _ = analyze_ripeness_by_color(bgr)
-            pred_t, conf_t, _, _, _ = analyze_ripeness_by_texture(bgr)
-            pred_g, conf_g, _, _, _ = analyze_ripeness_by_geometry(bgr)
+            st.markdown("<hr style='opacity: 0.2; margin: 20px 0;'>", unsafe_allow_html=True)
+            st.markdown(f"<div class='section-header'>{SVG_ICONS['analytics']} Batch Inspection Summary & KPIs</div>", unsafe_allow_html=True)
             
-            all_preds = [pred_m, pred_c, pred_t, pred_g]
-            final_pred = max(set(all_preds), key=all_preds.count)
+            kpi1, kpi2, kpi3, kpi4, kpi5 = st.columns(5)
+            kpi1.metric("Total Inspected", len(df_batch))
+            kpi2.metric("Ripe (Pass)", int((df_batch['final_pred'] == 'fully_ripe').sum()))
+            kpi3.metric("Unripe (Hold)", int((df_batch['final_pred'] == 'unripe').sum()))
+            kpi4.metric("Overripe (Reject)", int((df_batch['final_pred'] == 'overripe').sum()))
+            kpi5.metric("Avg Confidence", f"{df_batch['final_conf'].mean():.1f}%")
             
-            batch_results.append({
-                'filename': os.path.basename(img_path),
-                'morph_pred': pred_m,
-                'morph_conf': conf_m,
-                'color_pred': pred_c,
-                'color_conf': conf_c,
-                'texture_pred': pred_t,
-                'texture_conf': conf_t,
-                'geom_pred': pred_g,
-                'geom_conf': conf_g,
-                'final_pred': final_pred,
-                'blemish_ratio': f"{met_m.get('blemish_area_ratio', 0):.1f}%",
-                'true_class': os.path.basename(os.path.dirname(img_path))
-            })
-            progress_bar.progress((i + 1) / len(image_paths))
-            status_text.text(f"Inspecting item {i+1} / {len(image_paths)}...")
+            # Distribution Bar Chart
+            fig, ax = plt.subplots(figsize=(7, 3), facecolor='none')
+            ax.set_facecolor('none')
+            sns.countplot(data=df_batch, x='final_pred', order=['unripe', 'fully_ripe', 'overripe'], palette=['#16a34a', '#f59e0b', '#dc2626'], ax=ax)
+            ax.set_title("Batch Maturity Distribution (Confidence-Selected Decisions)", fontsize=10, fontweight='bold')
+            ax.spines['top'].set_visible(False)
+            ax.spines['right'].set_visible(False)
+            st.pyplot(fig)
             
-        elapsed = time.time() - start_time
-        status_text.success(f"Batch completed in {elapsed:.2f}s ({elapsed/len(image_paths)*1000:.1f} ms/item)")
-        
-        df_batch = pd.DataFrame(batch_results)
-        
-        # Summary KPI Cards
-        kpi1, kpi2, kpi3, kpi4 = st.columns(4)
-        kpi1.metric("Total Inspected", len(df_batch))
-        kpi2.metric("Ripe (Pass)", (df_batch['final_pred'] == 'fully_ripe').sum())
-        kpi3.metric("Unripe (Hold)", (df_batch['final_pred'] == 'unripe').sum())
-        kpi4.metric("Overripe (Reject)", (df_batch['final_pred'] == 'overripe').sum())
-        
-        st.dataframe(df_batch[['filename', 'morph_pred', 'color_pred', 'texture_pred', 'geom_pred', 'final_pred', 'blemish_ratio']], use_container_width=True, hide_index=True)
+            # Interactive Batch Data Table
+            st.markdown(f"<div class='section-header'>{SVG_ICONS['table']} Batch Assessment Itemized Records</div>", unsafe_allow_html=True)
+            
+            display_cols = ['filename']
+            for tech_col in ['morph_pred', 'color_pred', 'texture_pred', 'geom_pred']:
+                if tech_col in df_batch.columns:
+                    display_cols.append(tech_col)
+            display_cols.extend(['winning_model', 'final_pred', 'final_conf', 'blemish_ratio', 'severity_grade'])
+            
+            st.dataframe(df_batch[display_cols], use_container_width=True, hide_index=True)
+            
+            # Batch PDF Download
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.button("Generate Batch Quality Inspection PDF Report", use_container_width=True):
+                rep_results = []
+                for _, row in df_batch.iterrows():
+                    rep_results.append({
+                        'filename': row['filename'],
+                        'morph_pred': row.get('morph_pred', '-'),
+                        'morph_conf': 0,
+                        'color_pred': row.get('color_pred', '-'),
+                        'color_conf': 0,
+                        'texture_pred': row.get('texture_pred', '-'),
+                        'texture_conf': 0,
+                        'geom_pred': row.get('geom_pred', '-'),
+                        'geom_conf': 0,
+                        'final_pred': row['final_pred']
+                    })
+                summary_stats = {
+                    'total_assessed': len(df_batch),
+                    'consensus_ripe': int((df_batch['final_pred'] == 'fully_ripe').sum()),
+                    'consensus_unripe': int((df_batch['final_pred'] == 'unripe').sum()),
+                    'consensus_overripe': int((df_batch['final_pred'] == 'overripe').sum()),
+                    'avg_confidence': float(df_batch['final_conf'].mean())
+                }
+                pdf_bytes = generate_pdf_report(rep_results, summary_stats)
+                if isinstance(pdf_bytes, str) and os.path.exists(pdf_bytes):
+                    with open(pdf_bytes, "rb") as f:
+                        pdf_data = f.read()
+                else:
+                    pdf_data = pdf_bytes
+                st.download_button(
+                    label="Download Batch PDF Inspection Report",
+                    data=pdf_data,
+                    file_name=f"Batch_Inspection_Report_{int(time.time())}.pdf",
+                    mime="application/pdf",
+                    use_container_width=True
+                )
 
 # -----------------------------------------------------------------------------
-# PAGE 3: SYSTEM ANALYTICS & COMPARATIVE BENCHMARK
+# -----------------------------------------------------------------------------
+# PAGE 3: LIVE CAMERA INSPECTION (REAL-TIME STREAM, EXTRA EFFORT)
+# -----------------------------------------------------------------------------
+elif selected_page.startswith("Video"):
+    from src.video import analyze_frame, make_webrtc_callback, LiveSessionStats
+    st.markdown(f"<div class='main-title'>{SVG_ICONS['diagnostic']} Live Camera Inspection (Real-Time Stream)</div>", unsafe_allow_html=True)
+    st.markdown("<div class='sub-title'>Continuous webcam ingestion with real-time per-frame analysis: background-agnostic morphological segmentation followed by the MRMF pipeline on every frame.</div>", unsafe_allow_html=True)
+
+    try:
+        from streamlit_webrtc import webrtc_streamer
+        webrtc_available = True
+    except ImportError:
+        webrtc_available = False
+
+    input_mode = "Camera Snapshot"
+    if webrtc_available:
+        input_mode = st.radio("Input Mode:", ["Live Camera (WebRTC)", "Camera Snapshot"], horizontal=True)
+
+    if webrtc_available and input_mode.startswith("Live"):
+        if 'live_stats' not in st.session_state:
+            st.session_state['live_stats'] = LiveSessionStats()
+        stats = st.session_state['live_stats']
+
+        ctx = webrtc_streamer(
+            key="mango-live-inspection",
+            video_frame_callback=make_webrtc_callback(stats=stats),
+            media_stream_constraints={"video": True, "audio": False},
+            async_processing=True,
+        )
+        if ctx.state.playing:
+            st.success("Live stream active — each frame is background-segmented and graded in real time.")
+        else:
+            st.info("Waiting for webcam access... allow camera permission in the browser to start the stream.")
+
+        @st.fragment(run_every=2)
+        def render_live_stats():
+            snap = stats.snapshot()
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("Frames Analysed", snap['total_frames'])
+            m2.metric("Measured Throughput", f"{snap['measured_fps']:.1f} fps")
+            m3.metric("Avg Morphology Latency", f"{snap['avg_latency_ms']:.0f} ms")
+            m4.metric("Overripe (Reject) Frames", snap['verdict_counts'].get('overripe', 0))
+            st.bar_chart(snap['verdict_counts'])
+
+        render_live_stats()
+    else:
+        snap_img = st.camera_input("Point the camera at a mango and capture a frame:")
+        if snap_img is not None:
+            import io
+            file_bytes = np.asarray(bytearray(snap_img.getvalue()), dtype=np.uint8)
+            frame_bgr = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
+            with st.spinner("Analysing captured frame..."):
+                res = analyze_frame(frame_bgr)
+            st.image(res['annotated_rgb'], caption=f"Frame verdict: {res['prediction'].upper()} ({res['confidence']:.1f}%)")
+            with st.expander("What actually happened: Preprocessing Pipeline (Background Segmentation)", expanded=True):
+                st.image(res['tierb_mask'], caption="P. Background-Agnostic Morphological Fruit Mask (640x640)")
+            m1, m2, m3 = st.columns(3)
+            m1.metric("Defect Percentage", f"{res['defect_percentage']:.2f}%")
+            m2.metric("Severity Grade", res['severity_grade'])
+            m3.metric("Latency", f"{res['latency_ms']:.0f} ms")
+            if res['needs_review']:
+                st.warning("Low confidence — flagged for human review.")
+        else:
+            st.info("Capture a frame to begin per-frame analysis.")
+
+# PAGE 4: SYSTEM ANALYTICS & COMPARATIVE BENCHMARK
 # -----------------------------------------------------------------------------
 elif selected_page.startswith("System"):
     st.markdown(f"<div class='main-title'>{SVG_ICONS['analytics']} System Analytics & Comparative Benchmark</div>", unsafe_allow_html=True)
@@ -559,9 +804,9 @@ elif selected_page.startswith("System"):
     active_cs = st.session_state.get('selected_color_space', 'RGB')
     color_bm_active = bm_metrics.get('color', {}).get(active_cs, {})
     
-    morph_acc_str = f"{morph_bm.get('accuracy', 93.06):.2f}%"
-    morph_f1_str = f"{morph_bm.get('f1', 93.10):.2f}%"
-    morph_lat_str = f"{morph_bm.get('latency_ms', 29.26):.2f} ms"
+    morph_acc_str = f"{morph_bm.get('accuracy', 98.61):.2f}%"
+    morph_f1_str = f"{morph_bm.get('f1', 98.61):.2f}%"
+    morph_lat_str = f"{morph_bm.get('latency_ms', 32.48):.2f} ms"
     
     # Show overall highest accuracy among the 5 color spaces as main benchmark
     color_max_acc_str = f"{best_cs_acc:.2f}% (Best: {best_cs})"
@@ -624,7 +869,7 @@ elif selected_page.startswith("System"):
     c1, c2 = st.columns(2)
     
     verified_df = pd.DataFrame([
-        {'Module': 'Morphology (Herman)', 'Test Accuracy (%)': morph_bm.get('accuracy', 93.06), 'Latency (ms)': morph_bm.get('latency_ms', 29.26)},
+        {'Module': 'Morphology (Herman)', 'Test Accuracy (%)': morph_bm.get('accuracy', 98.61), 'Latency (ms)': morph_bm.get('latency_ms', 32.48)},
         {'Module': f'Color-Space ({best_cs})', 'Test Accuracy (%)': best_cs_acc, 'Latency (ms)': color_bm_active.get('latency_ms', 12.45)},
         {'Module': 'Texture (Kai Bin)', 'Test Accuracy (%)': texture_acc, 'Latency (ms)': texture_lat}
     ])

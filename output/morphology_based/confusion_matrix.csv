@@ -1,0 +1,4 @@
+,unripe,fully_ripe,overripe
+unripe,48,0,0
+fully_ripe,0,47,1
+overripe,0,1,47
