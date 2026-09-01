@@ -157,16 +157,19 @@ def analyze_ripeness_by_texture(image: np.ndarray, model_path: str = DEFAULT_MOD
     pred_label = int(model.predict(scaled_feats)[0])
     prediction = inv_label_map.get(pred_label, "unknown")
 
-    # Compute classification confidence
+    # Compute continuous classification confidence
     confidence = 90.0
-    if hasattr(model, 'predict_proba'):
+    if hasattr(model, 'kneighbors') and hasattr(model, 'predict_proba'):
+        dists, _ = model.kneighbors(scaled_feats)
+        probs = model.predict_proba(scaled_feats)[0]
+        mean_dist = float(np.mean(dists[0]))
+        # Continuous confidence scaling based on feature cluster distance
+        confidence = float(np.clip(97.5 / (1.0 + 0.12 * (mean_dist ** 1.2)), 60.0, 97.8))
+        if np.max(probs) < 1.0:
+            confidence = float(min(confidence, np.max(probs) * 100.0))
+    elif hasattr(model, 'predict_proba'):
         probs = model.predict_proba(scaled_feats)[0]
         confidence = float(np.max(probs)) * 100.0
-    elif hasattr(model, 'decision_function'):
-        df_val = model.decision_function(scaled_feats)
-        exp_vals = np.exp(df_val - np.max(df_val))
-        softmax_probs = exp_vals / np.sum(exp_vals)
-        confidence = float(np.max(softmax_probs)) * 100.0
 
     latency_ms = (time.time() - t_start) * 1000.0
 
