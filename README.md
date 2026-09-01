@@ -18,7 +18,7 @@ The system integrates four distinct classical computer vision and statistical fe
    - **Function**: Classifies ripeness transitions based on yellow-to-green chrominance shifts and color clustering.
    - **Performance**: 100.00% Best Test Accuracy (LAB) | 12.5 ms Latency.
 
-3. **Texture & Surface GLCM Analysis (Wong Kai Bin)**
+3. **Texture & Surface Analysis (Wong Kai Bin)**
    - **Formulation**: Rotation-Invariant Gray-Level Co-occurrence Matrix (GLCM across 4 angles) + Uniform Local Binary Patterns (LBP) + Surface Roughness.
    - **Function**: Captures micro-textural changes, peel smoothness, and surface entropy.
    - **Performance**: 92.36% Test Accuracy | 18.3 ms Latency.

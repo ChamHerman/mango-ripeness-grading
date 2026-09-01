@@ -237,7 +237,7 @@ st.sidebar.markdown(f"""
     <b>Team Module Status:</b><br><br>
     <div style='margin-bottom: 6px;'><b>Cham Herman</b>: Morphological Blemish<br><span class='status-completed'>{SVG_ICONS['verified']} Completed ({morph_bm.get('accuracy', 98.61):.2f}% Acc)</span></div>
     <div style='margin-bottom: 6px;'><b>Lum Siew Feng</b>: Color-Space Analysis<br><span class='status-completed'>{SVG_ICONS['verified']} Completed ({best_cs_acc:.2f}% Acc — Best: {best_cs})</span></div>
-    <div style='margin-bottom: 6px;'><b>Wong Kai Bin</b>: Texture & Surface GLCM<br><span class='status-completed'>{SVG_ICONS['verified']} Completed ({texture_acc:.2f}% Acc)</span></div>
+    <div style='margin-bottom: 6px;'><b>Wong Kai Bin</b>: Texture & Surface Analysis<br><span class='status-completed'>{SVG_ICONS['verified']} Completed ({texture_acc:.2f}% Acc)</span></div>
     <div style='margin-bottom: 6px;'><b>Yeow Wei Kang</b>: Edge & Shape Geometry<br><span class='status-completed'>{SVG_ICONS['verified']} Completed (91.67% Acc)</span></div>
     <hr style='margin: 8px 0; opacity: 0.2;'>
     <b>Compute Hardware:</b><br>
@@ -306,7 +306,7 @@ if selected_page.startswith("Single"):
         
         use_morph = st.checkbox("Morphological Blemish Analysis (Cham Herman) — [Completed]", value=True)
         use_color = st.checkbox("Color-Space Analysis (Lum Siew Feng) — [Completed]", value=True)
-        use_texture = st.checkbox("Texture & Surface GLCM Analysis (Wong Kai Bin) — [Completed]", value=True)
+        use_texture = st.checkbox("Texture & Surface Analysis (Wong Kai Bin) — [Completed]", value=True)
         use_geom = st.checkbox("Edge & Shape Deformity Detection (Yeow Wei Kang) — [Completed]", value=True)
         
         selected_count = sum([use_morph, use_color, use_texture, use_geom])
@@ -337,7 +337,7 @@ if selected_page.startswith("Single"):
                         
                     if use_texture:
                         pred_t, conf_t, vis_t, met_t, steps_t = analyze_ripeness_by_texture(img_prep_bgr)
-                        results['texture'] = {'pred': pred_t, 'conf': conf_t, 'vis': vis_t, 'metrics': met_t, 'steps': steps_t, 'author': 'Wong Kai Bin', 'name': 'Texture & Surface GLCM', 'status': 'completed'}
+                        results['texture'] = {'pred': pred_t, 'conf': conf_t, 'vis': vis_t, 'metrics': met_t, 'steps': steps_t, 'author': 'Wong Kai Bin', 'name': 'Texture & Surface Analysis', 'status': 'completed'}
                         
                     if use_geom:
                         pred_g, conf_g, vis_g, met_g, steps_g = analyze_ripeness_by_geometry(img_prep_bgr)
@@ -672,7 +672,7 @@ elif selected_page.startswith("Bulk"):
         
         b_use_morph = st.checkbox(f"Morphological Blemish Analysis (Cham Herman) — {morph_bm.get('accuracy', 98.61):.2f}% Acc [Completed]", value=True, key="b_morph")
         b_use_color = st.checkbox(f"Color-Space Analysis (Lum Siew Feng) — {best_cs_acc:.2f}% Best {best_cs} / 97.22% RGB [Completed]", value=True, key="b_color")
-        b_use_texture = st.checkbox(f"Texture & Surface GLCM (Wong Kai Bin) — {texture_acc:.2f}% Acc [Completed]", value=True, key="b_texture")
+        b_use_texture = st.checkbox(f"Texture & Surface Analysis (Wong Kai Bin) — {texture_acc:.2f}% Acc [Completed]", value=True, key="b_texture")
         b_use_geom = st.checkbox(f"Edge & Shape Deformity (Yeow Wei Kang) — {geom_acc:.2f}% Acc [Completed]", value=True, key="b_geom")
         
         b_active_count = sum([b_use_morph, b_use_color, b_use_texture, b_use_geom])
@@ -878,7 +878,7 @@ elif selected_page.startswith("Live"):
         live_alg_map = {
             f"Morphological Blemish Analysis (Cham Herman) — MRMF {morph_bm.get('accuracy', 98.61):.2f}% Acc": "morphology",
             f"Color-Space Analysis (Lum Siew Feng) — LAB Chrominance {best_cs_acc:.2f}% Acc": "color",
-            f"Texture & Surface GLCM (Wong Kai Bin) — GLCM/LBP Spatial {texture_acc:.2f}% Acc": "texture",
+            f"Texture & Surface Analysis (Wong Kai Bin) — Multi-Descriptor {texture_acc:.2f}% Acc": "texture",
             f"Edge & Shape Geometry (Yeow Wei Kang) — Scharr & Contour {geom_acc:.2f}% Acc": "geometry"
         }
         selected_live_label = st.selectbox("Active Ripeness Algorithm:", list(live_alg_map.keys()), index=0)
