@@ -21,6 +21,14 @@ from src.reports import generate_pdf_report
 from src.benchmark import get_benchmark_metrics
 from src.video import analyze_frame, make_webrtc_callback, LiveSessionStats, ALGORITHM_METADATA
 from src.hardware import get_hardware_info, init_hardware_acceleration
+from src.realtime_detection import (
+    analyze_multimango_frame,
+    detect_mango_instances,
+    RealtimeDetectionSession,
+    make_realtime_detection_callback,
+    ALGORITHM_ENGINES,
+    PREPROCESSING_ENGINES
+)
 
 # Auto-initialize compute device acceleration (GPU where available, CPU fallback)
 _IS_GPU_ACTIVE, _ACTIVE_DEVICE = init_hardware_acceleration(enable_gpu=True)
@@ -209,6 +217,7 @@ selected_page = st.sidebar.radio(
     "Navigation:",
     ["Single Image Diagnostic Playground",
      "Bulk Batch Assessment (Conveyor Stream)",
+     "Real-Time Multi-Mango Detection & Counting (Classical CV)",
      "Live Camera Inspection (Real-Time Stream)",
      "System Analytics & Comparative Benchmark"]
 )
@@ -851,7 +860,427 @@ elif selected_page.startswith("Bulk"):
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
-# PAGE 3: LIVE CAMERA INSPECTION (REAL-TIME STREAM, EXTRA EFFORT)
+# PAGE 3: REAL-TIME MULTI-MANGO DETECTION & COUNTING (PURE CLASSICAL CV)
+# -----------------------------------------------------------------------------
+elif selected_page.startswith("Real-Time"):
+    st.markdown(f"<div class='main-title'>{SVG_ICONS['diagnostic']} Real-Time Multi-Mango Detection & Ripeness Counting</div>", unsafe_allow_html=True)
+    st.markdown("<div class='sub-title'>100% Classical Computer Vision & Heuristic Pipeline (Zero Machine Learning / Zero Deep Learning): Ingests real-time video frames, performs background-agnostic multi-fruit segmentation, counts individual mangoes, marks localized ripeness badges, and computes real-time FPS/latency telemetry matrix.</div>", unsafe_allow_html=True)
+
+    # 1. Pipeline Controls & Configuration
+    col_rt_prep, col_rt_alg, col_rt_thresh = st.columns([1.1, 1.3, 0.9])
+    
+    with col_rt_prep:
+        st.markdown(f"<div class='glass-card'><div style='font-weight: 700; margin-bottom: 6px; display: flex; align-items: center; gap: 8px;'>{SVG_ICONS['sliders']} 1. Segmentation Preprocessing</div>", unsafe_allow_html=True)
+        st.markdown("<div style='font-size: 0.80rem; opacity: 0.75; margin-bottom: 8px;'>Select background removal engine:</div>", unsafe_allow_html=True)
+        rt_prep_options = {
+            "Background-Agnostic Morphological Masking (Cham Herman)": "morphology",
+            "Standard K-Means & Convex Hull (Lum Siew Feng)": "kmeans"
+        }
+        rt_selected_prep_label = st.selectbox("Active Preprocessing Engine:", list(rt_prep_options.keys()), index=0, key="rt_prep_sel")
+        rt_selected_prep_key = rt_prep_options[rt_selected_prep_label]
+        st.markdown("</div>", unsafe_allow_html=True)
+        
+    with col_rt_alg:
+        st.markdown(f"<div class='glass-card'><div style='font-weight: 700; margin-bottom: 6px; display: flex; align-items: center; gap: 8px;'>{SVG_ICONS['sliders']} 2. Classical Ripeness Rule Engine</div>", unsafe_allow_html=True)
+        st.markdown("<div style='font-size: 0.80rem; opacity: 0.75; margin-bottom: 8px;'>Select pure classical grading algorithm:</div>", unsafe_allow_html=True)
+        rt_alg_options = {
+            "Classical Color-Space (Lum Siew Feng) — Multi-Space Heuristics": "color",
+            "Classical Morphology (Cham Herman) — Beucher Blemish & Lesion Ratio": "morphology",
+            "Classical Texture (Wong Kai Bin) — Sobel Surface Roughness & Variance": "texture",
+            "Classical Geometry (Yeow Wei Kang) — Scharr Derivative & Circularity": "geometry",
+            "Classical Multi-Feature Rule Fusion (Team Consensus Voting)": "ensemble"
+        }
+        rt_selected_alg_label = st.selectbox("Active Classical Algorithm:", list(rt_alg_options.keys()), index=0, key="rt_alg_sel")
+        rt_selected_alg_key = rt_alg_options[rt_selected_alg_label]
+        
+        # Dedicated Color Space Model Selector
+        if rt_selected_alg_key == "color":
+            st.markdown("<div style='font-size: 0.78rem; opacity: 0.85; margin: 6px 0 2px 0; font-weight: 600;'>Select Color Space Model:</div>", unsafe_allow_html=True)
+            rt_cs_options = {
+                "CIELAB (L*a*b*) Model — Lum Siew Feng (Default / 100% Accuracy)": "lab",
+                "RGB Color Model (Red, Green, Blue Ratios)": "rgb",
+                "HSV Color Model (Hue, Saturation, Value)": "hsv",
+                "YCbCr Color Model (Luma & Chroma Differences)": "ycbcr",
+                "Combined Multi-Color-Space Ensemble": "combined"
+            }
+            rt_selected_cs_label = st.selectbox("Active Color Space Model:", list(rt_cs_options.keys()), index=0, key="rt_cs_sel")
+            rt_selected_cs_key = rt_cs_options[rt_selected_cs_label]
+        else:
+            rt_selected_cs_key = "lab"
+            
+        st.markdown("</div>", unsafe_allow_html=True)
+        
+    with col_rt_thresh:
+        st.markdown(f"<div class='glass-card'><div style='font-weight: 700; margin-bottom: 6px; display: flex; align-items: center; gap: 8px;'>{SVG_ICONS['sliders']} 3. Detection Sensitivity</div>", unsafe_allow_html=True)
+        st.markdown("<div style='font-size: 0.80rem; opacity: 0.75; margin-bottom: 8px;'>Minimum fruit candidate size (px):</div>", unsafe_allow_html=True)
+        rt_min_area = st.slider("Min Fruit Area:", min_value=1000, max_value=8000, value=2500, step=250, key="rt_min_area_slider")
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    # Session State for Real-time Streaming
+    if 'rt_session' not in st.session_state:
+        st.session_state['rt_session'] = RealtimeDetectionSession()
+    rt_session = st.session_state['rt_session']
+    rt_session.configure(
+        algorithm=rt_selected_alg_key,
+        color_space=rt_selected_cs_key,
+        preprocessing=rt_selected_prep_key,
+        min_area=rt_min_area
+    )
+    
+    if 'rt_stream_active' not in st.session_state:
+        st.session_state['rt_stream_active'] = False
+        
+    try:
+        from streamlit_webrtc import webrtc_streamer
+        rt_webrtc_available = True
+    except ImportError:
+        rt_webrtc_available = False
+
+    # 2. Camera Controls & Real-Time Ingestion
+    st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
+    c_feed_mode, c_stream_ctrl = st.columns([1.2, 1.0], gap="medium")
+    
+    with c_feed_mode:
+        feed_mode_options = [
+            "Live Hardware Webcam Stream (Direct OpenCV)",
+            "Upload Video File for Real-Time Analysis (.mp4, .avi, .mov)"
+        ]
+        if rt_webrtc_available:
+            feed_mode_options.append("Live Browser Webcam (WebRTC Stream)")
+        rt_input_mode = st.radio("Select Real-Time Video Ingestion Source:", feed_mode_options, index=0, horizontal=False, key="rt_input_feed_mode")
+        
+    with c_stream_ctrl:
+        st.markdown("<div style='font-size: 0.82rem; font-weight: 700; margin-bottom: 6px;'>Continuous Real-Time Controls:</div>", unsafe_allow_html=True)
+        c_btn_start, c_btn_stop = st.columns([1, 1])
+        with c_btn_start:
+            if st.button("Start Live Camera Stream", use_container_width=True, type="primary" if not st.session_state.get('rt_stream_active', False) else "secondary", key="rt_start_btn"):
+                st.session_state['rt_stream_active'] = True
+                st.rerun()
+        with c_btn_stop:
+            if st.button("Stop Camera Stream", use_container_width=True, type="secondary" if not st.session_state.get('rt_stream_active', False) else "primary", key="rt_stop_btn"):
+                st.session_state['rt_stream_active'] = False
+                st.rerun()
+                
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    # 3. Main Real-Time Video & Continuous Stream Display
+    col_video_display, col_side_info = st.columns([1.3, 0.9], gap="medium")
+    
+    with col_video_display:
+        st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
+        is_active = st.session_state.get('rt_stream_active', False)
+        status_tag = "<span class='badge-unripe'>LIVE REAL-TIME STREAMING</span>" if is_active else "<span class='badge-ripe'>STREAM STANDBY</span>"
+        st.markdown(f"<div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;'><span style='font-weight: 700;'>{SVG_ICONS['camera']} Live Video Frame Stream</span>{status_tag}</div>", unsafe_allow_html=True)
+        
+        frame_placeholder = st.empty()
+        
+        if rt_input_mode.startswith("Live Hardware Webcam Stream"):
+            if is_active:
+                # Open direct hardware camera stream loop
+                cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+                if not cap.isOpened():
+                    cap = cv2.VideoCapture(0)
+                    
+                if not cap.isOpened():
+                    st.error("Could not access local webcam device (Index 0). Please check your camera connection or switch to Browser WebRTC.")
+                else:
+                    stop_placeholder = st.empty()
+                    if stop_placeholder.button("Stop Live Video Feed", key="rt_stop_loop_btn", type="primary", use_container_width=True):
+                        st.session_state['rt_stream_active'] = False
+                        cap.release()
+                        st.rerun()
+                        
+                    frame_count = 0
+                    t_loop_start = time.perf_counter()
+                    
+                    while cap.isOpened() and st.session_state.get('rt_stream_active', False):
+                        ret, frame = cap.read()
+                        if not ret:
+                            st.warning("Webcam feed ended or frame was dropped.")
+                            break
+                            
+                        frame_count += 1
+                        loop_elapsed = time.perf_counter() - t_loop_start
+                        fps_calc = (frame_count / loop_elapsed) if loop_elapsed > 0 else 0.0
+                        
+                        # Process real-time multi-mango frame
+                        res = analyze_multimango_frame(
+                            frame,
+                            algorithm=rt_selected_alg_key,
+                            color_space=rt_selected_cs_key,
+                            preprocessing=rt_selected_prep_key,
+                            min_area=rt_min_area,
+                            fps_estimate=fps_calc
+                        )
+                        rt_session.record(res)
+                        
+                        # Render live frame
+                        frame_placeholder.image(res['annotated_rgb'], use_container_width=True)
+                        
+                    cap.release()
+            else:
+                st.info("Live camera is on standby. Click **'Start Live Camera Stream'** above to begin continuous real-time video detection.")
+                
+        elif rt_input_mode.startswith("Live Browser Webcam"):
+            if is_active:
+                ctx = webrtc_streamer(
+                    key="rt-mango-multi-detection",
+                    desired_playing_state=st.session_state['rt_stream_active'],
+                    video_frame_callback=make_realtime_detection_callback(rt_session),
+                    media_stream_constraints={"video": True, "audio": False},
+                    async_processing=True,
+                )
+                if ctx.state.playing:
+                    st.success(f"WebRTC Stream Running — {rt_selected_alg_label}")
+                else:
+                    st.info("Waiting for webcam stream permissions... click 'Allow' in your browser.")
+            else:
+                st.info("Live browser webcam is on standby. Click **'Start Live Camera Stream'** to activate WebRTC streaming.")
+                
+        else: # Upload Video File for Real-Time Analysis
+            uploaded_video = st.file_uploader(
+                "Upload Video File for Real-Time Multi-Mango Processing (.mp4, .avi, .mov, .mkv, .webm):",
+                type=["mp4", "avi", "mov", "mkv", "webm"],
+                key="rt_video_uploader"
+            )
+            
+            if uploaded_video is not None:
+                import tempfile
+                
+                t_input_file = tempfile.NamedTemporaryFile(delete=False, suffix=f"_{uploaded_video.name}")
+                t_input_file.write(uploaded_video.read())
+                t_input_file.flush()
+                t_input_path = t_input_file.name
+                t_input_file.close()
+                
+                c_v_info1, c_v_info2 = st.columns([2, 1])
+                with c_v_info1:
+                    st.info(f"Video Loaded: **{uploaded_video.name}** ({len(uploaded_video.getvalue()) / (1024*1024):.2f} MB)")
+                with c_v_info2:
+                    start_v_process = st.button("Process & Play Uploaded Video", type="primary", use_container_width=True, key="rt_process_video_btn")
+                    
+                if start_v_process or st.session_state.get('last_processed_video_name') == uploaded_video.name:
+                    if start_v_process:
+                        cap = cv2.VideoCapture(t_input_path)
+                        total_v_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+                        v_native_fps = cap.get(cv2.CAP_PROP_FPS) or 25.0
+                        
+                        t_output_path = os.path.join(tempfile.gettempdir(), f"annotated_mango_{int(time.time())}.mp4")
+                        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+                        out_writer = cv2.VideoWriter(t_output_path, fourcc, v_native_fps, (640, 640 + 58))
+                        
+                        v_progress = st.progress(0)
+                        v_status = st.empty()
+                        live_frame_box = st.empty()
+                        
+                        processed_idx = 0
+                        t_vid_start = time.perf_counter()
+                        
+                        while cap.isOpened():
+                            ret, frame = cap.read()
+                            if not ret or frame is None:
+                                break
+                                
+                            processed_idx += 1
+                            elapsed_now = time.perf_counter() - t_vid_start
+                            fps_est = (processed_idx / elapsed_now) if elapsed_now > 0 else v_native_fps
+                            
+                            res = analyze_multimango_frame(
+                                frame,
+                                algorithm=rt_selected_alg_key,
+                                color_space=rt_selected_cs_key,
+                                preprocessing=rt_selected_prep_key,
+                                min_area=rt_min_area,
+                                fps_estimate=fps_est
+                            )
+                            rt_session.record(res)
+                            
+                            # Convert annotated RGB frame to BGR for VideoWriter
+                            annotated_bgr = cv2.cvtColor(res['annotated_rgb'], cv2.COLOR_RGB2BGR)
+                            out_writer.write(annotated_bgr)
+                            
+                            # Update live preview every 3 frames for optimal performance
+                            if processed_idx % 3 == 0 or processed_idx == 1:
+                                live_frame_box.image(res['annotated_rgb'], use_container_width=True)
+                                
+                            if total_v_frames > 0:
+                                v_progress.progress(min(1.0, processed_idx / total_v_frames))
+                                v_status.markdown(f"<div style='font-size:0.82rem; opacity:0.85;'>Processing frame <b>{processed_idx} / {total_v_frames}</b> ({fps_est:.1f} FPS) — Detected: <b>{res['mango_count']} Mangoes</b></div>", unsafe_allow_html=True)
+                                
+                        cap.release()
+                        out_writer.release()
+                        
+                        total_vid_time = time.perf_counter() - t_vid_start
+                        avg_vid_fps = (processed_idx / total_vid_time) if total_vid_time > 0 else 0.0
+                        v_status.success(f"Video Processing Complete: Evaluated {processed_idx} frames in {total_vid_time:.2f}s ({avg_vid_fps:.1f} FPS average throughput)!")
+                        
+                        st.session_state['last_processed_video_path'] = t_output_path
+                        st.session_state['last_processed_video_name'] = uploaded_video.name
+                        
+                    # Display the final processed video player and download button
+                    if 'last_processed_video_path' in st.session_state and os.path.exists(st.session_state['last_processed_video_path']):
+                        p_path = st.session_state['last_processed_video_path']
+                        st.markdown(f"<div style='font-weight: 700; margin: 10px 0 6px 0;'>{SVG_ICONS['verified']} Processed Output Video with Real-Time Annotations:</div>", unsafe_allow_html=True)
+                        st.video(p_path)
+                        
+                        with open(p_path, "rb") as vf:
+                            v_bytes = vf.read()
+                            
+                        st.download_button(
+                            label=f"Download Annotated Video ({len(v_bytes) / (1024*1024):.2f} MB, MP4)",
+                            data=v_bytes,
+                            file_name=f"Processed_Mango_Video_{int(time.time())}.mp4",
+                            mime="video/mp4",
+                            use_container_width=True,
+                            type="primary"
+                        )
+            else:
+                st.markdown("<div style='opacity:0.75; font-size:0.88rem; padding:15px; text-align:center;'>Upload a video file above (.mp4, .avi, .mov) to execute real-time multi-mango segmentation, counting, and ripeness localization across all video frames.</div>", unsafe_allow_html=True)
+                
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    with col_side_info:
+        st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
+        st.markdown(f"<div style='font-weight: 700; margin-bottom: 8px;'>{SVG_ICONS['analytics']} Active Classical Pipeline Info</div>", unsafe_allow_html=True)
+        cs_display_line = f"<b>Color Space:</b> {rt_selected_cs_label}<br>" if rt_selected_alg_key == 'color' else ""
+        st.markdown(f"""
+        <div style='font-size: 0.82rem; opacity: 0.85; line-height: 1.6;'>
+            <b>Algorithm:</b> {rt_selected_alg_label}<br>
+            {cs_display_line}<b>Segmentation:</b> {rt_selected_prep_label}<br>
+            <b>Classical Mode:</b> 100% Heuristic Rules (Zero ML/DL)<br>
+            <b>Instance Detection:</b> Classical Contour Morphology<br>
+            <b>Compute Device:</b> {hw_info['device_name']}<br>
+            <b>Hardware Acceleration:</b> {'Enabled (OpenCL)' if hw_info['has_gpu'] else 'Active CPU SIMD Vectorized'}
+        </div>
+        """, unsafe_allow_html=True)
+        st.markdown("<hr style='opacity: 0.15; margin: 12px 0;'>", unsafe_allow_html=True)
+        
+        # Real-Time Telemetry Snapshot Status
+        snap_mat_side = rt_session.snapshot_matrix()
+        st.markdown("<div style='font-size: 0.85rem; font-weight: 700; margin-bottom: 6px;'>Current Stream Statistics:</div>", unsafe_allow_html=True)
+        st.markdown(f"""
+        <div style='font-size: 0.80rem; opacity: 0.85; line-height: 1.6;'>
+            • <b>Frames Streamed:</b> {snap_mat_side['total_frames']}<br>
+            • <b>Current Mango Count:</b> {snap_mat_side['current_mango_count']}<br>
+            • <b>Unripe Detected:</b> {snap_mat_side['current_breakdown'].get('unripe', 0)} (Total: {snap_mat_side['cum_unripe']})<br>
+            • <b>Ripe Detected:</b> {snap_mat_side['current_breakdown'].get('fully_ripe', 0)} (Total: {snap_mat_side['cum_ripe']})<br>
+            • <b>Overripe Detected:</b> {snap_mat_side['current_breakdown'].get('overripe', 0)} (Total: {snap_mat_side['cum_overripe']})
+        </div>
+        """, unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    # 4. Real-Time Performance & Metrics Matrix (Placed Under The Image)
+    st.markdown("<hr style='opacity: 0.2; margin: 20px 0;'>", unsafe_allow_html=True)
+    st.markdown(f"<div class='section-header'>{SVG_ICONS['table']} Real-Time Latency, FPS & Mango Count Metrics Matrix</div>", unsafe_allow_html=True)
+    st.markdown("<div style='font-size: 0.85rem; opacity: 0.75; margin-bottom: 12px;'>Real-time performance throughput, per-frame operational latency, and multi-mango count breakdown matrix:</div>", unsafe_allow_html=True)
+    
+    # Snapshot session matrix data
+    snap_mat = rt_session.snapshot_matrix()
+    curr_fps = snap_mat['current_fps'] if snap_mat['current_fps'] > 0 else (1000.0 / max(snap_mat['last_latency_ms'], 1.0) if snap_mat['last_latency_ms'] > 0 else 0.0)
+    curr_lat = snap_mat['last_latency_ms']
+    mango_cnt = snap_mat['current_mango_count']
+    breakdown = snap_mat['current_breakdown']
+    
+    # Row 1 Matrix Cards: Performance KPIs
+    m_card1, m_card2, m_card3, m_card4 = st.columns(4)
+    with m_card1:
+        st.markdown(f"""
+        <div class='glass-card' style='text-align: center;'>
+            <div class='metric-label'>Throughput Frame Rate</div>
+            <div class='metric-val' style='color: #10b981;'>{curr_fps:.1f} FPS</div>
+            <div style='font-size: 0.72rem; opacity: 0.7;'>Real-Time Frame Rate</div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+    with m_card2:
+        st.markdown(f"""
+        <div class='glass-card' style='text-align: center;'>
+            <div class='metric-label'>Processing Latency</div>
+            <div class='metric-val' style='color: #3b82f6;'>{curr_lat:.1f} ms</div>
+            <div style='font-size: 0.72rem; opacity: 0.7;'>Per-Frame Execution Budget</div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+    with m_card3:
+        st.markdown(f"""
+        <div class='glass-card' style='text-align: center;'>
+            <div class='metric-label'>Mangoes Detected</div>
+            <div class='metric-val' style='color: #f59e0b;'>{mango_cnt} Fruit{'s' if mango_cnt != 1 else ''}</div>
+            <div style='font-size: 0.72rem; opacity: 0.7;'>Current Frame Count</div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+    with m_card4:
+        st.markdown(f"""
+        <div class='glass-card' style='text-align: center;'>
+            <div class='metric-label'>Grading Pipeline</div>
+            <div class='metric-val' style='font-size: 1.15rem; color: #8b5cf6; padding-top: 6px;'>Pure Classical</div>
+            <div style='font-size: 0.72rem; opacity: 0.7;'>Zero ML / Zero DL</div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+    # Row 2 Matrix Cards: Ripeness Class Distribution Matrix
+    c_unripe, c_ripe, c_overripe, c_cum = st.columns(4)
+    with c_unripe:
+        st.markdown(f"""
+        <div class='glass-card' style='border-left: 4px solid #16a34a;'>
+            <div class='metric-label'>Stage 0: Unripe</div>
+            <div class='metric-val' style='color: #16a34a;'>{breakdown.get('unripe', 0)}</div>
+            <div style='font-size: 0.75rem; opacity: 0.75;'>Cumulative: <b>{snap_mat['cum_unripe']}</b></div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+    with c_ripe:
+        st.markdown(f"""
+        <div class='glass-card' style='border-left: 4px solid #f59e0b;'>
+            <div class='metric-label'>Stage 3: Fully Ripe</div>
+            <div class='metric-val' style='color: #d97706;'>{breakdown.get('fully_ripe', 0)}</div>
+            <div style='font-size: 0.75rem; opacity: 0.75;'>Cumulative: <b>{snap_mat['cum_ripe']}</b></div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+    with c_overripe:
+        st.markdown(f"""
+        <div class='glass-card' style='border-left: 4px solid #dc2626;'>
+            <div class='metric-label'>Stage Overripe</div>
+            <div class='metric-val' style='color: #dc2626;'>{breakdown.get('overripe', 0)}</div>
+            <div style='font-size: 0.75rem; opacity: 0.75;'>Cumulative: <b>{snap_mat['cum_overripe']}</b></div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+    with c_cum:
+        st.markdown(f"""
+        <div class='glass-card' style='border-left: 4px solid #6366f1;'>
+            <div class='metric-label'>Total Frames Processed</div>
+            <div class='metric-val' style='color: #4f46e5;'>{snap_mat['total_frames']}</div>
+            <div style='font-size: 0.75rem; opacity: 0.75;'>Device: <b>{hw_info['device_type']}</b></div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # 5. Session Data Export & Reset Controls
+    df_rt_history = rt_session.get_history_df()
+    st.markdown("<br>", unsafe_allow_html=True)
+    c_rt_dl, c_rt_rst = st.columns([3, 1], gap="small")
+    with c_rt_dl:
+        if not df_rt_history.empty:
+            rt_csv_bytes = df_rt_history.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label=f"Download Real-Time Multi-Mango Telemetry Log ({len(df_rt_history)} Frames, CSV)",
+                data=rt_csv_bytes,
+                file_name=f"realtime_mango_telemetry_{int(time.time())}.csv",
+                mime="text/csv",
+                use_container_width=True,
+                type="primary"
+            )
+        else:
+            st.button("Download Real-Time Telemetry Log (CSV)", disabled=True, use_container_width=True)
+    with c_rt_rst:
+        if st.button("Reset Telemetry Matrix", use_container_width=True, type="secondary", key="rt_reset_btn"):
+            rt_session.reset()
+            st.rerun()
+
+# -----------------------------------------------------------------------------
+# PAGE 4: LIVE CAMERA INSPECTION (REAL-TIME STREAM, EXTRA EFFORT)
 # -----------------------------------------------------------------------------
 elif selected_page.startswith("Live"):
     from src.video import PREPROCESSING_METADATA
