@@ -64,7 +64,7 @@ The interactive Streamlit application provides four dedicated operational dashbo
 - **Live Stream Telemetry**: Rolling real-time FPS counter, per-frame latency gauge, active mango count, distribution tally, and exportable CSV telemetry logs.
 
 ### 4. System Analytics & Comparative Benchmark
-- **Mode A Table 2.1**: Comprehensive comparative benchmark displaying feature vector dimensions, classifier architectures, test accuracies, and inference latencies.
+- **Mode A Table 2.1**: Comprehensive comparative benchmark displaying core formulations, test accuracies, and inference latencies across all 4 modules.
 - **Environmental Robustness & Invariance Matrix**: Theoretical invariance properties (Illumination and Scale Invariance) and biological cues targeted by each technique.
 - **Verified Performance Visualizations**: Side-by-side bar charts comparing test accuracy against the $\ge 85\%$ threshold and latency against the $200\text{ ms}$ real-time budget.
 - **5-Color Space Benchmark Breakdown**: Detailed accuracy and ranking comparison across `RGB`, `HSV`, `LAB`, `YCbCr`, and `HLS`.

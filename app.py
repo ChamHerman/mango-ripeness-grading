@@ -1740,8 +1740,6 @@ elif selected_page.startswith("System"):
             'Algorithm / Module': '1. Morphological Blemish Analysis',
             'Author & Role': 'Cham Herman (Lead / Fusion)',
             'Core Formulation': 'Multi-Scale Beucher Gradient & Black-Hat Residual Fusion (MRMF)',
-            'Feature Vector Size': '12 features',
-            'Classifier Model': 'Random Forest Ensemble',
             'Test Accuracy (%)': f"{morph_data.get('accuracy', 98.61):.2f}%",
             'Latency (ms/img)': f"{morph_data.get('latency_ms', 32.48):.2f} ms"
         },
@@ -1749,8 +1747,6 @@ elif selected_page.startswith("System"):
             'Algorithm / Module': f'2. Color-Space Analysis (Top: {best_cs})',
             'Author & Role': 'Lum Siew Feng (Color Engineer)',
             'Core Formulation': f'Multi-Color Space Chrominance & SVM ({best_cs} Top Model)',
-            'Feature Vector Size': '9 features',
-            'Classifier Model': 'Support Vector Machine (RBF)',
             'Test Accuracy (%)': f"{color_data.get('accuracy', 100.00):.2f}%",
             'Latency (ms/img)': f"{color_data.get('latency_ms', 12.45):.2f} ms"
         },
@@ -1758,8 +1754,6 @@ elif selected_page.startswith("System"):
             'Algorithm / Module': '3. Texture & Surface Analysis',
             'Author & Role': 'Wong Kai Bin (Texture Lead)',
             'Core Formulation': 'Rotation-Invariant GLCM (4 angles) + Uniform LBP + Surface Roughness',
-            'Feature Vector Size': '32 features',
-            'Classifier Model': 'Support Vector Machine (RBF)',
             'Test Accuracy (%)': f"{texture_data.get('accuracy', 92.36):.2f}%",
             'Latency (ms/img)': f"{texture_data.get('latency_ms', 18.30):.2f} ms"
         },
@@ -1767,8 +1761,6 @@ elif selected_page.startswith("System"):
             'Algorithm / Module': '4. Edge & Shape Deformity',
             'Author & Role': 'Yeow Wei Kang (Geometry Lead)',
             'Core Formulation': 'Scharr Edge Density Gradient + Contour Morphometry Pipeline',
-            'Feature Vector Size': '22 features',
-            'Classifier Model': 'ExtraTrees Classifier',
             'Test Accuracy (%)': f"{geom_data.get('accuracy', 91.67):.2f}%",
             'Latency (ms/img)': f"{geom_data.get('latency_ms', 25.00):.2f} ms"
         }
