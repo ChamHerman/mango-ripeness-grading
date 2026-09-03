@@ -20,3 +20,5 @@ CONTEXT.md
 Thumbs.db
 /.scratch
 /.playwright-mcp
+*.html
+*.zip

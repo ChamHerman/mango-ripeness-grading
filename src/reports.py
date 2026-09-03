@@ -8,6 +8,37 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 
+def format_stage_label(cls_name):
+    """Returns clean human-friendly ripeness class without underscores (e.g. Fully Ripe, Overripe, Unripe)."""
+    if not cls_name or cls_name == '-':
+        return '-'
+    cls_lower = str(cls_name).lower()
+    if 'unripe' in cls_lower:
+        return "Unripe"
+    elif 'overripe' in cls_lower:
+        return "Overripe"
+    elif 'ripe' in cls_lower:
+        return "Fully Ripe"
+    return str(cls_name).replace("_", " ").title()
+
+def format_cell_prediction(raw_val, conf=0.0):
+    """Formats prediction string or tuple into human-friendly text without underscores."""
+    if not raw_val or raw_val == '-':
+        return '-'
+    val_str = str(raw_val)
+    if '(' in val_str:
+        val_str = val_str.replace('fully_ripe', 'Fully Ripe') \
+                         .replace('FULLY_RIPE', 'Fully Ripe') \
+                         .replace('overripe', 'Overripe') \
+                         .replace('OVERRIPE', 'Overripe') \
+                         .replace('unripe', 'Unripe') \
+                         .replace('UNRIPE', 'Unripe')
+        return val_str.replace('_', ' ')
+    label = format_stage_label(val_str)
+    if conf and conf > 0:
+        return f"{label} ({conf:.1f}%)"
+    return label
+
 def generate_pdf_report(results, summary_stats):
     """
     Generates a structured PDF inspection report detailing mango ripeness analysis.
@@ -103,7 +134,7 @@ def generate_pdf_report(results, summary_stats):
         [Paragraph("Unripe Mangoes (Count / %)", table_text_style), Paragraph(f"{unripe_val} ({(unripe_val/total_val*100):.1f}%)" if total_val > 0 else "0", table_text_style)],
         [Paragraph("Fully Ripe Mangoes (Count / %)", table_text_style), Paragraph(f"{ripe_val} ({(ripe_val/total_val*100):.1f}%)" if total_val > 0 else "0", table_text_style)],
         [Paragraph("Overripe Mangoes (Count / %)", table_text_style), Paragraph(f"{overripe_val} ({(overripe_val/total_val*100):.1f}%)" if total_val > 0 else "0", table_text_style)],
-        [Paragraph("Dominant Maturity Class", table_text_style), Paragraph(str(dom).upper(), table_text_style)],
+        [Paragraph("Dominant Maturity Class", table_text_style), Paragraph(format_stage_label(dom), table_text_style)],
         [Paragraph("Average Decision Confidence", table_text_style), Paragraph(f"{avg_conf:.1f}%" if avg_conf else "N/A", table_text_style)],
         [Paragraph("Integrated Team Modules", table_text_style), Paragraph("Morphology (Herman), Color (Siew Feng), Texture (Kai Bin), Geometry (Wei Kang)", table_text_style)]
     ]
@@ -136,12 +167,12 @@ def generate_pdf_report(results, summary_stats):
     
     table_data = [headers]
     for r in results:
-        m_str = r.get('morph_pred', '-') if isinstance(r.get('morph_pred'), str) and '(' in r.get('morph_pred', '') else (f"{r.get('morph_pred', '-')} ({r.get('morph_conf', 0):.1f}%)" if r.get('morph_pred') and r.get('morph_pred') != '-' else "-")
-        c_str = r.get('color_pred', '-') if isinstance(r.get('color_pred'), str) and '(' in r.get('color_pred', '') else (f"{r.get('color_pred', '-')} ({r.get('color_conf', 0):.1f}%)" if r.get('color_pred') and r.get('color_pred') != '-' else "-")
-        t_str = r.get('texture_pred', '-') if isinstance(r.get('texture_pred'), str) and '(' in r.get('texture_pred', '') else (f"{r.get('texture_pred', '-')} ({r.get('texture_conf', 0):.1f}%)" if r.get('texture_pred') and r.get('texture_pred') != '-' else "-")
-        g_str = r.get('geom_pred', '-') if isinstance(r.get('geom_pred'), str) and '(' in r.get('geom_pred', '') else (f"{r.get('geom_pred', '-')} ({r.get('geom_conf', 0):.1f}%)" if r.get('geom_pred') and r.get('geom_pred') != '-' else "-")
+        m_str = format_cell_prediction(r.get('morph_pred', '-'), r.get('morph_conf', 0))
+        c_str = format_cell_prediction(r.get('color_pred', '-'), r.get('color_conf', 0))
+        t_str = format_cell_prediction(r.get('texture_pred', '-'), r.get('texture_conf', 0))
+        g_str = format_cell_prediction(r.get('geom_pred', '-'), r.get('geom_conf', 0))
         
-        final_str = str(r.get('final_pred', 'N/A')).upper()
+        final_str = format_stage_label(r.get('final_pred', 'N/A'))
         
         table_data.append([
             Paragraph(str(r.get('filename', 'Sample')), table_text_style),

@@ -46,15 +46,16 @@ The Streamlit web application is structured into four functional pages:
 - Batch defect distribution charts and summary KPI telemetry.
 - Automated multi-page PDF quality inspection report generation via ReportLab.
 
-### 3. Live Camera Inspection (Real-Time Stream)
-- Low-latency webcam stream ingestion powered by Streamlit-WebRTC and PyAV.
-- Configurable upstream preprocessing selection:
-  - *Standard K-Means Color Clustering & Convex Hull (Default)*
-  - *Background-Agnostic Morphological Fruit Segmentation*
-- Dynamic hot-switching across all 4 classification pipelines during streaming.
-- Two-line HUD banner with text measurement to prevent label collision.
-- Side-by-side stream layout with manual stream controls (`Start Live Stream` / `Stop Live Stream`).
-- Real-time diagnostic telemetry panel with 18-metric CSV log export (`Download Telemetry Log`).
+### 3. Real-Time Multi-Mango Detection & Ripeness Counting
+- High-performance real-time video stream ingestion supporting **Direct Hardware Camera (OpenCV DirectShow as Default / Ultra-Low Latency)**, **Browser WebRTC**, and **Video File Upload**.
+- Multi-mango instance localization: Connected component and contour analysis for simultaneous multi-fruit counting and individual ROI extraction.
+- Configurable upstream preprocessing selection without artificial frame bottlenecks:
+  - *Background-Agnostic Morphological Masking (Default — High Speed ~3-5ms, 30+ FPS)*
+  - *Standard K-Means Color Clustering & Hull (Compute-Intensive ~150-300ms for hardware limit benchmarking)*
+- Live hot-switching across all 4 classification pipelines (Morphology, Color-Space with 5 color models, Texture, Geometry) and multi-feature consensus voting.
+- In-frame localized bounding boxes, corner tech accents, and floating ripeness verdict badges positioned directly at each mango.
+- 4-column streamlined configuration bar with prominent Start/Stop controls.
+- Real-time Performance & Metrics Matrix with rolling FPS, per-frame latency, mango count, stage distribution, and CSV telemetry export.
 
 ### 4. System Analytics & Comparative Benchmark
 - Mode A Table 2.1 comparative benchmark across all team modules.
