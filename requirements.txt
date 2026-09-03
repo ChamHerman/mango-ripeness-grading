@@ -13,3 +13,5 @@ pillow>=10.0.0
 rembg[cpu]>=2.0.0
 scikit-learn
 joblib
+tqdm>=4.65.0
+ipywidgets>=8.0.0
