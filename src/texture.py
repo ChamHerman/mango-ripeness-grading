@@ -121,7 +121,7 @@ def analyze_ripeness_by_texture(image: np.ndarray, model_path: str = DEFAULT_MOD
     Returns:
         prediction (str): Ripeness stage ('unripe', 'fully_ripe', or 'overripe').
         confidence (float): Classification confidence percentage (0-100%).
-        visualized_img (np.ndarray): RGB texture gradient & surface overlay image.
+        visualized_img (np.ndarray): RGB Sobel texture gradient & surface overlay image.
         metrics (dict): Extracted GLCM & LBP metrics dictionary.
         step_images (dict): Dictionary of intermediate pipeline stage images.
     """
@@ -207,7 +207,7 @@ def analyze_ripeness_by_texture(image: np.ndarray, model_path: str = DEFAULT_MOD
         '2. Fruit Segmentation Mask': mask,
         '3. Local Binary Pattern (LBP) Map': lbp_colored_rgb,
         '4. GLCM Spatial Texture Heatmap': heatmap_rgb,
-        '5. Texture Gradient Overlay': blended
+        '5. Sobel Texture Gradient Overlay': blended
     }
 
     return prediction, float(confidence), blended, metrics, step_images

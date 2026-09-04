@@ -7,6 +7,8 @@ __pycache__/
 # Planning documents and scratch files (Do not upload to master PR)
 *plan*.md
 notebooks/*plan*.md
+*presentation*.md
+notebooks/*presentation*.md
 .zcode/
 scratch/
 *.log
