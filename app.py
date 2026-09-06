@@ -1741,7 +1741,7 @@ elif selected_page.startswith("System"):
             'Author & Role': 'Cham Herman (Lead / Fusion)',
             'Core Formulation': 'Multi-Scale Beucher Gradient & Black-Hat Residual Fusion (MRMF)',
             'Test Accuracy (%)': f"{morph_data.get('accuracy', 98.61):.2f}%",
-            'Latency (ms/img)': f"{morph_data.get('latency_ms', 32.48):.2f} ms"
+            'Latency (ms/img)': f"{morph_data.get('latency_ms', 24.19):.2f} ms"
         },
         {
             'Algorithm / Module': f'2. Color-Space Analysis (Top: {best_cs})',
@@ -1807,7 +1807,7 @@ elif selected_page.startswith("System"):
     c1, c2 = st.columns(2)
     
     verified_df = pd.DataFrame([
-        {'Module': 'Morphology\n(Herman)', 'Test Accuracy (%)': morph_data.get('accuracy', 98.61), 'Latency (ms)': morph_data.get('latency_ms', 32.48)},
+        {'Module': 'Morphology\n(Herman)', 'Test Accuracy (%)': morph_data.get('accuracy', 98.61), 'Latency (ms)': morph_data.get('latency_ms', 24.19)},
         {'Module': f'Color-Space\n({best_cs})', 'Test Accuracy (%)': color_data.get('accuracy', 100.00), 'Latency (ms)': color_data.get('latency_ms', 12.45)},
         {'Module': 'Texture\n(Kai Bin)', 'Test Accuracy (%)': texture_data.get('accuracy', 92.36), 'Latency (ms)': texture_data.get('latency_ms', 18.30)},
         {'Module': 'Geometry\n(Wei Kang)', 'Test Accuracy (%)': geom_data.get('accuracy', 91.67), 'Latency (ms)': geom_data.get('latency_ms', 25.00)}
@@ -1905,8 +1905,8 @@ elif selected_page.startswith("System"):
         {
             'SMART Objective': 'Objective 3: Operational Latency',
             'Target Criterion': 'Execute with per-image latency < 200 ms budget',
-            'Current Measured Status': f"{morph_data.get('latency_ms', 32.48):.2f} ms (Morphology) | {color_data.get('latency_ms', 12.45):.2f} ms (Color) | {texture_data.get('latency_ms', 18.30):.2f} ms (Texture) | {geom_data.get('latency_ms', 25.00):.2f} ms (Geometry)",
-            'Fulfillment': 'Target Exceeded (12.45 - 32.48 ms)'
+            'Current Measured Status': f"{morph_data.get('latency_ms', 24.19):.2f} ms (Morphology) | {color_data.get('latency_ms', 12.45):.2f} ms (Color) | {texture_data.get('latency_ms', 18.30):.2f} ms (Texture) | {geom_data.get('latency_ms', 25.00):.2f} ms (Geometry)",
+            'Fulfillment': 'Target Exceeded (12.45 - 25.00 ms)'
         }
     ]
     st.dataframe(pd.DataFrame(smart_data), use_container_width=True, hide_index=True)

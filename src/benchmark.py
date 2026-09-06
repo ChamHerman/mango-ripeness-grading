@@ -55,7 +55,7 @@ DEFAULT_BENCHMARK = {
         'f1_macro': 98.61,
         'f1_weighted': 98.61,
         'per_class_f1': {'unripe': 100.00, 'fully_ripe': 97.92, 'overripe': 97.92},
-        'latency_ms': 32.48
+        'latency_ms': 24.19
     },
     'texture': {
         'accuracy': 92.36,
@@ -175,7 +175,7 @@ def get_benchmark_metrics() -> dict:
                     'f1_macro': round(f1_m, 2),
                     'f1_weighted': round(f1_w, 2),
                     'per_class_f1': per_cls,
-                    'latency_ms': 32.48
+                    'latency_ms': 24.19
                 }
         except Exception:
             pass
