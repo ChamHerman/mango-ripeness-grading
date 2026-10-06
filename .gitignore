@@ -16,7 +16,8 @@ scratch/
 # System and IDE configuration
 /.reasonix
 reasonix.toml
-/docs
+!/docs/assets/**
+!/docs/screenshots/**
 CONTEXT.md
 .DS_Store
 Thumbs.db
