@@ -36,40 +36,32 @@ The **Mango Ripeness Grading & Inspection Suite** resolves these limitations thr
                            │          RAW SENSOR / CAMERA STREAM INGESTION          │
                            └───────────────────────────┬────────────────────────────┘
                                                        │
-                                 Standard Letterbox & Preprocessing
+                                     Standard Letterbox & Preprocessing
                                  ┌─────────────────────┴────────────────────┐
                                  │ • Bilateral Denoising                    │
                                  │ • Contrast-Limited Adaptive Equalization │
                                  │ • Background Masking & Normalization     │
                                  └─────────────────────┬────────────────────┘
                                                        │
-                     ┌─────────────────────────────────┼────────────────────────────────┐
-                     │                                 │                                │
-                     ▼                                 ▼                                ▼
-       ┌───────────────────────────┐     ┌───────────────────────────┐    ┌───────────────────────────┐
-       │   MORPHOLOGY & BLEMISH    │     │   COLOR-SPACE ANALYSIS    │    │  TEXTURE & ROUGHNESS      │
-       │ Multi-Scale Beucher Grad  │     │ RGB + HSV + LAB + YCbCr   │    │ 4-Angle GLCM + Uniform LBP│
-       │ Granulometric Black-Hat   │     │ Carotenoid/Chlorophyll Ind│    │ Textural Shannon Entropy  │
-       │ Random Forest Classifier  │     │ RBF SVM Classifier        │    │ RBF SVM Classifier        │
-       └─────────────┬─────────────┘     └─────────────┬─────────────┘    └─────────────┬─────────────┘
-                     │                                 │                                │
-                     └─────────────────┐               │               ┌────────────────┘
-                                       │               │               │
-                                       ▼               ▼               ▼
-                                 ┌───────────────────────────────────────────┐
-                                 │         EDGE & SHAPE GEOMETRY             │
-                                 │ Scharr Edge Density & Gradient Magnitude  │
-                                 │ Suzuki-Abe Topological Border Morphometry │
-                                 │ ExtraTrees Ensemble Classifier            │
-                                 └─────────────────────┬─────────────────────┘
+           ┌─────────────────────────────┬─────────────┴──────────────┬─────────────────────────────┐
+           │                             │                            │                             │
+           ▼                             ▼                            ▼                             ▼
+  ┌──────────────────┐          ┌──────────────────┐          ┌──────────────────┐          ┌──────────────────┐
+  │   MORPHOLOGY     │          │   COLOR-SPACE    │          │     TEXTURE      │          │   EDGE & SHAPE   │
+  │ Beucher Gradient │          │ 5 Spaces (LAB..) │          │ 4-Direction GLCM │          │ Scharr Gradients │
+  │ Black-Hat Filter │          │ Carotenoid Ratio │          │ Uniform LBP + H  │          │ Suzuki-Abe Cont. │
+  │  Random Forest   │          │     RBF SVM      │          │     RBF SVM      │          │    ExtraTrees    │
+  └────────┬─────────┘          └────────┬─────────┘          └────────┬─────────┘          └────────┬─────────┘
+           │                             │                            │                             │
+           └─────────────────────────────┴─────────────┬──────────────┴─────────────────────────────┘
                                                        │
                                                        ▼
-                                 ┌───────────────────────────────────────────┐
-                                 │    HYBRID ENSEMBLE CONSENSUS ENGINE       │
-                                 │  • Plurality Voting & Outlier Immunity    │
-                                 │  • Cumulative Confidence Tie-Breaking     │
-                                 │  • Real-Time Spatial Tracking & HUD       │
-                                 └─────────────────────┬─────────────────────┘
+                          ┌────────────────────────────────────────────────────────┐
+                          │           HYBRID ENSEMBLE CONSENSUS ENGINE             │
+                          │  • Plurality Voting & Outlier Immunity                 │
+                          │  • Cumulative Confidence Tie-Breaking                  │
+                          │  • Real-Time Spatial Tracking & HUD Telemetry          │
+                          └───────────────────────────┬────────────────────────────┘
                                                        │
                                  ┌─────────────────────┴────────────────────┐
                                  ▼                                          ▼
